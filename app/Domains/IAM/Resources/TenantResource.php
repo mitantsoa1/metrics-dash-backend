@@ -32,6 +32,8 @@ class TenantResource
     public ?string $slug = null;
     public ?string $ownerName = null;
     public ?string $ownerEmail = null;
+    public ?string $name = null;
+    public ?string $email = null;
     public ?string $password = null;
     public ?string $ownerUserId = null;
     public ?string $status = null;

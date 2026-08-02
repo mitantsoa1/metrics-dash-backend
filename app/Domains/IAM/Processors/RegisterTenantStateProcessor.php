@@ -23,10 +23,14 @@ class RegisterTenantStateProcessor implements ProcessorInterface
             throw new InvalidArgumentException('Data attendue de type TenantResource.');
         }
 
+        $ownerEmail = ! empty($data->ownerEmail) ? $data->ownerEmail : (! empty($data->email) ? $data->email : '');
+        $ownerName = ! empty($data->ownerName) ? $data->ownerName : (! empty($data->name) ? $data->name : '');
+        $organizationName = $data->organizationName ?? '';
+
         $inputDto = new RegisterTenantInputDTO(
-            organizationName: $data->organizationName ?? '',
-            ownerName: $data->ownerName ?? '',
-            ownerEmail: $data->ownerEmail ?? '',
+            organizationName: trim($organizationName),
+            ownerName: trim($ownerName),
+            ownerEmail: trim($ownerEmail),
             password: $data->password ?? ''
         );
 
@@ -38,6 +42,9 @@ class RegisterTenantStateProcessor implements ProcessorInterface
         $resource->slug = $outputDto->slug;
         $resource->ownerUserId = $outputDto->ownerUserId;
         $resource->ownerEmail = $outputDto->ownerEmail;
+        $resource->email = $outputDto->ownerEmail;
+        $resource->ownerName = $ownerName;
+        $resource->name = $ownerName;
         $resource->status = 'ACTIVE';
         $resource->token = $outputDto->token;
 
