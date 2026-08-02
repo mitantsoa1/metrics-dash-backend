@@ -65,6 +65,7 @@ class TenantRegistrationService
                 organizationName: $tenant->getName(),
                 slug: $tenant->getSlug(),
                 ownerUserId: $owner->getId()->toString(),
+                ownerName: $owner->getName(),
                 ownerEmail: $owner->getEmail()->toString(),
                 token: $token
             );

@@ -9,7 +9,6 @@ use ApiPlatform\State\ProcessorInterface;
 use App\Domains\IAM\Actions\AuthenticateUserAction;
 use App\Domains\IAM\DTOs\LoginInputDTO;
 use App\Domains\IAM\Resources\AuthResource;
-use InvalidArgumentException;
 
 class LoginStateProcessor implements ProcessorInterface
 {
@@ -19,13 +18,19 @@ class LoginStateProcessor implements ProcessorInterface
 
     public function process(mixed $data, Operation $operation, array $uriVariables = [], array $context = []): AuthResource
     {
-        if (! $data instanceof AuthResource) {
-            throw new InvalidArgumentException('Data attendue de type AuthResource.');
-        }
+        $req = request()?->json()?->all() ?? request()?->all() ?? [];
+
+        $email = ! empty($data?->email) ? $data->email
+            : (! empty($req['email']) ? $req['email']
+            : '');
+
+        $password = ! empty($data?->password) ? $data->password
+            : (! empty($req['password']) ? $req['password']
+            : '');
 
         $inputDto = new LoginInputDTO(
-            email: $data->email ?? '',
-            password: $data->password ?? ''
+            email: trim((string) $email),
+            password: (string) $password
         );
 
         $outputDto = $this->authenticateUserAction->execute($inputDto);
@@ -36,7 +41,7 @@ class LoginStateProcessor implements ProcessorInterface
         $resource->userId = $outputDto->userId;
         $resource->tenantId = $outputDto->tenantId;
         $resource->role = $outputDto->role;
-        $resource->email = $data->email;
+        $resource->email = $outputDto->email;
 
         return $resource;
     }

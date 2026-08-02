@@ -9,7 +9,6 @@ use ApiPlatform\State\ProcessorInterface;
 use App\Domains\Instance\Actions\CreateInstanceAction;
 use App\Domains\Instance\DTOs\CreateInstanceInputDTO;
 use App\Domains\Instance\Resources\InstanceResource;
-use InvalidArgumentException;
 
 class CreateInstanceStateProcessor implements ProcessorInterface
 {
@@ -19,19 +18,23 @@ class CreateInstanceStateProcessor implements ProcessorInterface
 
     public function process(mixed $data, Operation $operation, array $uriVariables = [], array $context = []): InstanceResource
     {
-        if (! $data instanceof InstanceResource) {
-            throw new InvalidArgumentException('Data attendue de type InstanceResource.');
-        }
+        $req = request()?->json()?->all() ?? request()?->all() ?? [];
+        $request = $context['request'] ?? request();
+        $user = $request?->user() ?? auth()->user();
 
-        $request = $context['request'] ?? null;
-        $user = $request?->user();
-        $tenantId = $data->tenantId ?? $user?->tenant_id ?? '';
+        $tenantId = ! empty($data?->tenantId) ? $data->tenantId
+            : (! empty($req['tenantId']) ? $req['tenantId']
+            : ($user?->tenant_id ?? ''));
+
+        $name = ! empty($data?->name) ? $data->name : (! empty($req['name']) ? $req['name'] : '');
+        $domain = ! empty($data?->domain) ? $data->domain : (! empty($req['domain']) ? $req['domain'] : '');
+        $environment = ! empty($data?->environment) ? $data->environment : (! empty($req['environment']) ? $req['environment'] : 'PRODUCTION');
 
         $inputDto = new CreateInstanceInputDTO(
-            tenantId: $tenantId,
-            name: $data->name ?? '',
-            domain: $data->domain ?? '',
-            environment: $data->environment ?? 'PRODUCTION'
+            tenantId: (string) $tenantId,
+            name: trim((string) $name),
+            domain: trim((string) $domain),
+            environment: (string) $environment
         );
 
         $outputDto = $this->createInstanceAction->execute($inputDto);

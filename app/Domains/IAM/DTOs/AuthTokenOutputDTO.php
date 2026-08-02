@@ -11,6 +11,7 @@ final readonly class AuthTokenOutputDTO
         public string $tokenType,
         public string $userId,
         public string $tenantId,
-        public string $role
+        public string $role,
+        public string $email
     ) {}
 }

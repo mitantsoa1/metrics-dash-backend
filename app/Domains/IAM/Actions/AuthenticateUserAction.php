@@ -40,7 +40,8 @@ class AuthenticateUserAction
             tokenType: 'Bearer',
             userId: $user->getId()->toString(),
             tenantId: $user->getTenantId()->toString(),
-            role: $user->getRole()->value
+            role: $user->getRole()->value,
+            email: $user->getEmail()->toString()
         );
     }
 }

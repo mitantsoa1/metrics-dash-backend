@@ -9,7 +9,6 @@ use ApiPlatform\State\ProcessorInterface;
 use App\Domains\IAM\Actions\AddMemberAction;
 use App\Domains\IAM\DTOs\AddMemberInputDTO;
 use App\Domains\IAM\Resources\MemberResource;
-use InvalidArgumentException;
 
 class AddMemberStateProcessor implements ProcessorInterface
 {
@@ -19,18 +18,20 @@ class AddMemberStateProcessor implements ProcessorInterface
 
     public function process(mixed $data, Operation $operation, array $uriVariables = [], array $context = []): MemberResource
     {
-        if (! $data instanceof MemberResource) {
-            throw new InvalidArgumentException('Data attendue de type MemberResource.');
-        }
+        $req = request()?->json()?->all() ?? request()?->all() ?? [];
 
-        $tenantId = $uriVariables['tenantId'] ?? $data->tenantId ?? '';
+        $tenantId = $uriVariables['tenantId'] ?? $data?->tenantId ?? $req['tenantId'] ?? '';
+        $name = ! empty($data?->name) ? $data->name : (! empty($req['name']) ? $req['name'] : '');
+        $email = ! empty($data?->email) ? $data->email : (! empty($req['email']) ? $req['email'] : '');
+        $password = ! empty($data?->password) ? $data->password : (! empty($req['password']) ? $req['password'] : '');
+        $role = ! empty($data?->role) ? $data->role : (! empty($req['role']) ? $req['role'] : 'VIEWER');
 
         $inputDto = new AddMemberInputDTO(
-            tenantId: $tenantId,
-            memberName: $data->name ?? '',
-            memberEmail: $data->email ?? '',
-            password: $data->password ?? '',
-            role: $data->role ?? 'VIEWER'
+            tenantId: (string) $tenantId,
+            memberName: trim((string) $name),
+            memberEmail: trim((string) $email),
+            password: (string) $password,
+            role: (string) $role
         );
 
         $outputDto = $this->addMemberAction->execute($inputDto);

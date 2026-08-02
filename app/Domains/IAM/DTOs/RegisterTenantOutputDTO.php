@@ -11,6 +11,7 @@ final readonly class RegisterTenantOutputDTO
         public string $organizationName,
         public string $slug,
         public string $ownerUserId,
+        public string $ownerName,
         public string $ownerEmail,
         public string $token
     ) {}

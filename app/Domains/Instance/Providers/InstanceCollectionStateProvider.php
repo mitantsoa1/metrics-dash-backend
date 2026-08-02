@@ -21,7 +21,7 @@ class InstanceCollectionStateProvider implements ProviderInterface
      */
     public function provide(Operation $operation, array $uriVariables = [], array $context = []): array
     {
-        $tenantIdStr = $uriVariables['tenantId'] ?? null;
+        $tenantIdStr = $uriVariables['tenantId'] ?? request()?->route('tenantId') ?? auth()->user()?->tenant_id ?? null;
         if (! $tenantIdStr) {
             return [];
         }
