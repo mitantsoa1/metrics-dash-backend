@@ -14,12 +14,12 @@ use App\Domains\IAM\Providers\MemberStateProvider;
     shortName: 'Member',
     operations: [
         new Post(
-            uriTemplate: '/v1/tenants/{tenantId}/members',
+            uriTemplate: '/api/v1/tenants/{tenantId}/members',
             middleware: ['auth:sanctum'],
             processor: AddMemberStateProcessor::class
         ),
         new GetCollection(
-            uriTemplate: '/v1/tenants/{tenantId}/members',
+            uriTemplate: '/api/v1/tenants/{tenantId}/members',
             middleware: ['auth:sanctum'],
             provider: MemberStateProvider::class
         ),
@@ -28,16 +28,10 @@ use App\Domains\IAM\Providers\MemberStateProvider;
 class MemberResource
 {
     public ?string $userId = null;
-
     public ?string $tenantId = null;
-
     public ?string $name = null;
-
     public ?string $email = null;
-
     public ?string $password = null;
-
     public ?string $role = null;
-
     public ?string $createdAt = null;
 }

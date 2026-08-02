@@ -12,7 +12,7 @@ use App\Domains\IAM\Processors\LoginStateProcessor;
     shortName: 'Auth',
     operations: [
         new Post(
-            uriTemplate: '/v1/auth/login',
+            uriTemplate: '/api/v1/auth/login',
             processor: LoginStateProcessor::class
         ),
     ]
@@ -20,16 +20,10 @@ use App\Domains\IAM\Processors\LoginStateProcessor;
 class AuthResource
 {
     public ?string $email = null;
-
     public ?string $password = null;
-
     public ?string $token = null;
-
     public ?string $tokenType = null;
-
     public ?string $userId = null;
-
     public ?string $tenantId = null;
-
     public ?string $role = null;
 }

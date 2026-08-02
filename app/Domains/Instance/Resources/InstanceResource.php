@@ -17,22 +17,22 @@ use App\Domains\Instance\Providers\InstanceStateProvider;
     shortName: 'Instance',
     operations: [
         new Post(
-            uriTemplate: '/v1/instances',
+            uriTemplate: '/api/v1/instances',
             middleware: ['auth:sanctum'],
             processor: CreateInstanceStateProcessor::class
         ),
         new GetCollection(
-            uriTemplate: '/v1/tenants/{tenantId}/instances',
+            uriTemplate: '/api/v1/tenants/{tenantId}/instances',
             middleware: ['auth:sanctum'],
             provider: InstanceCollectionStateProvider::class
         ),
         new Get(
-            uriTemplate: '/v1/instances/{id}',
+            uriTemplate: '/api/v1/instances/{id}',
             middleware: ['auth:sanctum'],
             provider: InstanceStateProvider::class
         ),
         new Post(
-            uriTemplate: '/v1/instances/{id}/rotate-keys',
+            uriTemplate: '/api/v1/instances/{id}/rotate-keys',
             middleware: ['auth:sanctum'],
             processor: RotateApiKeysProcessor::class
         ),
@@ -41,24 +41,14 @@ use App\Domains\Instance\Providers\InstanceStateProvider;
 class InstanceResource
 {
     public ?string $id = null;
-
     public ?string $tenantId = null;
-
     public ?string $name = null;
-
     public ?string $domain = null;
-
     public ?string $environment = null;
-
     public ?string $status = null;
-
     public ?string $publicSdkKey = null;
-
     public ?string $privatePushKey = null;
-
     public ?string $rotatedKeyType = null;
-
     public ?string $newPlainKey = null;
-
     public ?string $createdAt = null;
 }

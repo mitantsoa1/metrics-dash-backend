@@ -4,14 +4,14 @@ return [
     'title' => 'MetricsDash API',
     'description' => 'SaaS Analytics Enterprise Multi-Tenant API',
     'version' => '1.0.0',
+    'prefix' => '/api',
+    'route_prefix' => '/api',
     'routes' => [
         'prefix' => '/api',
     ],
     'resources' => [
         app_path('Domains/IAM/Resources'),
         app_path('Domains/Instance/Resources'),
-        app_path('Domains/Ingestion/Resources'),
-        app_path('Domains/Analytics/Resources'),
     ],
     'formats' => [
         'jsonld' => ['application/ld+json'],

@@ -14,12 +14,12 @@ use App\Domains\IAM\Providers\TenantStateProvider;
     shortName: 'Tenant',
     operations: [
         new Post(
-            uriTemplate: '/v1/tenants/register',
+            uriTemplate: '/api/v1/tenants/register',
             processor: RegisterTenantStateProcessor::class,
             output: TenantResource::class
         ),
         new Get(
-            uriTemplate: '/v1/tenants/{id}',
+            uriTemplate: '/api/v1/tenants/{id}',
             provider: TenantStateProvider::class,
             middleware: ['auth:sanctum']
         ),
@@ -28,20 +28,12 @@ use App\Domains\IAM\Providers\TenantStateProvider;
 class TenantResource
 {
     public ?string $id = null;
-
     public ?string $organizationName = null;
-
     public ?string $slug = null;
-
     public ?string $ownerName = null;
-
     public ?string $ownerEmail = null;
-
     public ?string $password = null;
-
     public ?string $ownerUserId = null;
-
     public ?string $status = null;
-
     public ?string $token = null;
 }
