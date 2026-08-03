@@ -13,7 +13,9 @@ return [
         app_path('Domains/IAM/Resources'),
         app_path('Domains/Instance/Resources'),
         app_path('Domains/Ingestion/Resources'),
+        app_path('Domains/Analytics/Resources'),
     ],
+
 
     'formats' => [
         'jsonld' => ['application/ld+json'],
