@@ -22,7 +22,9 @@ class EventIngestionService
 {
     public function __construct(
         private readonly ApiKeyRepositoryInterface $apiKeyRepository,
-        private readonly RawEventRepositoryInterface $rawEventRepository
+        private readonly RawEventRepositoryInterface $rawEventRepository,
+        private readonly EventAnonymizationService $anonymizationService,
+        private readonly UserAgentParserService $uaParserService
     ) {}
 
     public function ingestSdkEvent(IngestSdkEventInputDTO $dto): IngestEventOutputDTO
@@ -34,10 +36,23 @@ class EventIngestionService
             throw InvalidApiKeyException::forType('PUBLIC_SDK');
         }
 
-        $anonymizedIp = $this->anonymizeIp($dto->ipAddress);
+        $ip = $dto->ipAddress ?? '127.0.0.1';
+        $ua = $dto->userAgent ?? '';
+
+        $anonymizedIp = $this->anonymizationService->anonymizeIp($ip);
+        $uaMetadata = $this->uaParserService->parse($ua);
+        $anonymizedVisitorId = $this->anonymizationService->generateAnonymousVisitorId(
+            $dto->visitorId,
+            $ip,
+            $ua
+        );
+
         $context = array_merge($dto->context, [
-            'anonymizedIp' => $anonymizedIp,
-            'userAgent' => $dto->userAgent,
+            'anonymized_ip' => $anonymizedIp,
+            'device_type' => $uaMetadata['device_type'],
+            'browser' => $uaMetadata['browser'],
+            'os' => $uaMetadata['os'],
+            'user_agent' => $ua,
             'source' => 'SDK_WEB',
         ]);
 
@@ -45,7 +60,7 @@ class EventIngestionService
             instanceId: $apiKey->getInstanceId(),
             eventType: EventType::NAVIGATION,
             eventName: EventName::fromString($dto->eventName),
-            visitorId: $dto->visitorId ? VisitorId::fromString($dto->visitorId) : null,
+            visitorId: VisitorId::fromString($anonymizedVisitorId),
             sessionId: $dto->sessionId ? SessionId::fromString($dto->sessionId) : null,
             payload: $dto->payload,
             context: $context
@@ -77,9 +92,11 @@ class EventIngestionService
             throw InvalidApiKeyException::forType('PRIVATE_PUSH');
         }
 
-        $anonymizedIp = $this->anonymizeIp($dto->ipAddress);
+        $ip = $dto->ipAddress ?? '127.0.0.1';
+        $anonymizedIp = $this->anonymizationService->anonymizeIp($ip);
+
         $context = [
-            'anonymizedIp' => $anonymizedIp,
+            'anonymized_ip' => $anonymizedIp,
             'source' => 'API_PUSH_SERVER',
         ];
 
@@ -109,24 +126,5 @@ class EventIngestionService
             occurredAt: $rawEvent->getOccurredAt()->format('Y-m-d H:i:s')
         );
     }
-
-    private function anonymizeIp(?string $ip): string
-    {
-        if (! $ip) {
-            return '0.0.0.0';
-        }
-
-        if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
-            $parts = explode('.', $ip);
-            $parts[3] = '0';
-            return implode('.', $parts);
-        }
-
-        if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) {
-            $parts = explode(':', $ip);
-            return implode(':', array_slice($parts, 0, 3)).'::';
-        }
-
-        return '0.0.0.0';
-    }
 }
+
