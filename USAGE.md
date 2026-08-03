@@ -65,7 +65,7 @@ L'interface Web s'exécute sur : **`http://localhost:3000`**.
 
 ## 3. Matrice des Fonctionnalités & Endpoints Consommés
 
-| EPIC | Fonctionnalité Attendue | Endpoint API Consommé | Composants UI Frontend |
+| EPIC | Fonctionnalité Attendue | Endpoint API Consommé | Composants UI / Clients |
 | :--- | :--- | :--- | :--- |
 | **EPIC-01** | Inscription Tenant & Owner | `POST /api/v1/tenants/register` | `/register` (`RegisterForm.tsx`) |
 | **EPIC-01** | Connexion & Jeton Sanctum Bearer | `POST /api/v1/auth/login` | `/login` (`LoginForm.tsx`) |
@@ -74,12 +74,14 @@ L'interface Web s'exécute sur : **`http://localhost:3000`**.
 | **EPIC-02** | Création d'Instance (Site/App) | `POST /api/v1/instances` | `/instances` (`CreateInstanceModal.tsx`) |
 | **EPIC-02** | Génération des Clés SDK & Push | Hachage SHA-256 en BDD | Modal (`KeysDisplayModal.tsx`) |
 | **EPIC-02** | Rotation des Clés d'API | `POST /api/v1/instances/{id}/rotate-keys` | Boutons Rotate (`InstancesList.tsx`) |
+| **EPIC-03** | Ingestion Événement SDK Web Public | `POST /api/v1/telemetry/sdk` | SDK Web Browser / Beacon |
+| **EPIC-03** | Ingestion Événement Push Privé Backend | `POST /api/v1/telemetry/push` | Client Backend Node / Python / Go / PHP |
 
 ---
 
 ## 4. Guide de Test Manuel Interactif (Pas à Pas)
 
-Suivez ces 5 étapes dans votre navigateur sur **`http://localhost:3000`** :
+Suivez ces 7 étapes dans votre navigateur ou votre terminal :
 
 ### Étape 1 : Inscription d'un nouveau Tenant (EPIC-01)
 1. Ouvrez l'URL : `http://localhost:3000/register`.
@@ -152,6 +154,47 @@ Suivez ces 5 étapes dans votre navigateur sur **`http://localhost:3000`** :
 
 ---
 
+### Étape 6 : Test de Collecte d'Événements SDK Web (EPIC-03)
+Exécutez cette commande cURL en remplaçant `pk_live_...` par la clé publique de votre instance :
+
+```bash
+curl -X POST http://localhost:8000/api/v1/telemetry/sdk \
+  -H "Content-Type: application/json" \
+  -H "X-SDK-Key: pk_live_votre_cle_publique_sdk" \
+  -d '{
+    "eventName": "page_view",
+    "visitorId": "vis_99887766",
+    "sessionId": "sess_11223344",
+    "payload": {
+      "url": "https://shop.acme-enterprise.com/checkout",
+      "title": "Page de Paiement"
+    }
+  }'
+```
+- **Comportement attendu** : HTTP `201 Created` avec la confirmation de l'événement et son `eventId`. L'adresse IP cliente est anonymisée en base de données dans la table `raw_events`.
+
+---
+
+### Étape 7 : Test d'Ingestion API Push Privée Serveur-à-Serveur (EPIC-03)
+Exécutez cette commande cURL avec la clé privée `sk_live_...` :
+
+```bash
+curl -X POST http://localhost:8000/api/v1/telemetry/push \
+  -H "Content-Type: application/json" \
+  -H "X-Push-Secret-Key: sk_live_votre_cle_privee_push" \
+  -d '{
+    "eventName": "order_completed",
+    "eventData": {
+      "orderId": "ord_99482",
+      "amount": 299.99,
+      "currency": "EUR"
+    }
+  }'
+```
+- **Comportement attendu** : HTTP `201 Created` avec statut `ACCEPTED`. L'événement métier est immédiatement inséré dans la table `raw_events`.
+
+---
+
 ## 5. Exécution des Tests Automatisés & Qualité
 
 Pour valider l'intégrité du code avant tout déploiement :
@@ -161,7 +204,7 @@ Pour valider l'intégrité du code avant tout déploiement :
 cd backend
 vendor/bin/phpunit
 ```
-- **Vérifie** : La validation des formats FQDN, le hachage SHA-256 des clés API, et l'enregistrement atomique des Tenants.
+- **Vérifie** : La validation des formats FQDN, le hachage SHA-256 des clés API, l'enregistrement atomique des Tenants et l'ingestion d'événements SDK/Push (EPIC-03).
 
 ### Contrôle Qualité du Code Backend (Laravel Pint)
 ```bash
@@ -180,7 +223,7 @@ npx tsc --noEmit
 cd frontend
 npm run build
 ```
-- **Vérifie** : La compilation sans avertissement de toutes les routes Next.js 16 (`/`, `/login`, `/register`, `/members`, `/instances`).
+- **Vérifie** : La compilation sans avertissement de toutes les routes Next.js 16.
 
 ---
 
@@ -188,4 +231,6 @@ npm run build
 
 La spécification OpenAPI est générée automatiquement par API Platform. Vous pouvez la consulter et tester les endpoints directement depuis votre navigateur à l'adresse :
 
-👉 **`http://localhost:8000/api`**
+👉 **`http://localhost:8000/docs`** (ou `http://localhost:8000/api`)
+
+
