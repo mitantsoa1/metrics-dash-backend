@@ -7,5 +7,7 @@ return [
     App\Domains\IAM\IAMServiceProvider::class,
     App\Domains\Instance\InstanceServiceProvider::class,
     App\Domains\Ingestion\IngestionServiceProvider::class,
+    MetricsDash\Laravel\MetricsDashServiceProvider::class,
 ];
+
 
