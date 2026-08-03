@@ -12,7 +12,9 @@ return [
     'resources' => [
         app_path('Domains/IAM/Resources'),
         app_path('Domains/Instance/Resources'),
+        app_path('Domains/Ingestion/Resources'),
     ],
+
     'formats' => [
         'jsonld' => ['application/ld+json'],
         'json' => ['application/json'],
@@ -30,4 +32,6 @@ return [
         'pagination_items_per_page' => 30,
         'pagination_client_items_per_page' => true,
     ],
+
+
 ];
