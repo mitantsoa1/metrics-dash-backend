@@ -1,6 +1,6 @@
 # Guide d'Utilisation et de Test — MetricsDash Enterprise
 
-Ce document présente les instructions complètes pour démarrer, utiliser et tester le projet **MetricsDash Enterprise** (Backend Laravel 12 + Frontend Next.js 16).
+Ce document présente les instructions complètes pour démarrer, utiliser et tester l'intégralité du projet **MetricsDash Enterprise** (Backend Laravel 12 + Frontend Next.js 16).
 
 ---
 
@@ -12,11 +12,14 @@ Le projet est découpé en deux répertoires principaux :
 metrics-dash/
 ├── backend/                           # API REST & Gateway Ingestion (Laravel 12 / DDD)
 │   ├── app/Domains/IAM/               # Domaine IAM (EPIC-01)
-│   └── app/Domains/Instance/          # Domaine Instance & Clés API (EPIC-02)
+│   ├── app/Domains/Instance/          # Domaine Instance & Clés API (EPIC-02)
+│   ├── app/Domains/Ingestion/         # Domaine Ingestion, Traitement & Anonymisation (EPIC-03 & EPIC-04)
+│   └── app/Domains/Analytics/         # Domaine Analytics, Agrégation & Quotas (EPIC-05 à EPIC-08)
 ├── frontend/                          # Dashboard Analytics Enterprise (Next.js 16 App Router)
 │   ├── src/modules/auth/              # Module Authentification
 │   ├── src/modules/iam/               # Module Gestion des Membres & RBAC
-│   └── src/modules/instance/          # Module Gestion des Instances Client
+│   ├── src/modules/instance/          # Module Gestion des Instances Client
+│   └── src/modules/analytics/         # Module Analytics & Visualisation (EPIC-06)
 └── docs/                              # Documentation d'Architecture & Guide d'Utilisation
 ```
 
@@ -76,12 +79,20 @@ L'interface Web s'exécute sur : **`http://localhost:3000`**.
 | **EPIC-02** | Rotation des Clés d'API | `POST /api/v1/instances/{id}/rotate-keys` | Boutons Rotate (`InstancesList.tsx`) |
 | **EPIC-03** | Ingestion Événement SDK Web Public | `POST /api/v1/telemetry/sdk` | SDK Web Browser / Beacon |
 | **EPIC-03** | Ingestion Événement Push Privé Backend | `POST /api/v1/telemetry/push` | Client Backend Node / Python / Go / PHP |
+| **EPIC-04** | Processing & Anonymisation RGPD | Queue Horizon `high-ingestion` | `ProcessRawEventBatchJob.php` |
+| **EPIC-04** | Enrichissement User-Agent & Device | `UserAgentParserService` | Attributs `device_type`, `browser`, `os` |
+| **EPIC-05** | Agrégation des Métriques par Jour | `php artisan metrics:aggregate` | Table `daily_metrics` (`MetricAggregationService.php`) |
+| **EPIC-06** | Dashboard Analytics & KPIs Live | `GET /api/v1/metrics` | `/analytics` (`AnalyticsDashboardClient.tsx`) |
+| **EPIC-07** | Export de Rapports CSV / PDF | `POST /api/v1/reports/export` | `ReportExportStateProcessor.php` |
+| **EPIC-07** | Envoi d'Emails de Rapport Automatises | Queue Horizon `exports-reports` | `SendAutomatedReportJob.php` |
+| **EPIC-08** | Suivi du Quota d'Événements | `QuotaEvaluationService` | Méthode `getQuotaUsage()` |
+| **EPIC-08** | Blocage HTTP 429 sur Dépassement | `EnforceQuotaMiddleware` | En-tête `X-Quota-Exceeded: true` |
 
 ---
 
 ## 4. Guide de Test Manuel Interactif (Pas à Pas)
 
-Suivez ces 7 étapes dans votre navigateur ou votre terminal :
+Suivez ces 10 étapes dans votre navigateur ou votre terminal :
 
 ### Étape 1 : Inscription d'un nouveau Tenant (EPIC-01)
 1. Ouvrez l'URL : `http://localhost:3000/register`.
@@ -91,75 +102,36 @@ Suivez ces 7 étapes dans votre navigateur ou votre terminal :
    - **E-mail du Propriétaire** : `alice@acme-enterprise.com`
    - **Mot de passe** : `SecurePassword123!`
 3. Cliquez sur **"Créer l'Organisation"**.
-4. **Comportement attendu** :
-   - Le backend enregistre atomiquement (`DB::transaction`) le Tenant et le compte Owner sous le rôle `OWNER`.
-   - Le jeton Bearer Sanctum est généré et stocké dans l'`AuthContext`.
-   - Vous êtes automatiquement redirigé vers la page d'accueil du Dashboard (`/`).
 
 ---
 
 ### Étape 2 : Test de Déconnexion & Re-connexion (EPIC-01)
 1. Sur le Dashboard, cliquez sur l'icône de déconnexion dans le **Header** (haut à droite).
-2. **Comportement attendu** :
-   - Le jeton est purgé du `localStorage`.
-   - Redirection vers `http://localhost:3000/login`.
-3. Saisissez vos identifiants (`alice@acme-enterprise.com` / `SecurePassword123!`) et validez.
-4. **Comportement attendu** : Accès rétabli au Dashboard.
+2. Connectez-vous avec vos identifiants.
 
 ---
 
 ### Étape 3 : Gestion des Membres & Contrôle d'Accès RBAC (EPIC-01)
-1. Cliquez sur **"Membres & Rôles"** dans la Sidebar de gauche (`/members`).
-2. Observez la liste : Le compte `Alice Founder` apparaît avec le badge violet **`OWNER`**.
-3. Cliquez sur le bouton **"Ajouter un Membre"**.
-4. Renseignez :
-   - Nom : `Bob Analyst`
-   - E-mail : `bob@acme-enterprise.com`
-   - Mot de passe : `TempPassword123!`
-   - Rôle : `ANALYST`
-5. Cliquez sur **"Ajouter le membre"**.
-6. **Comportement attendu** :
-   - La requête `POST` est exécutée.
-   - TanStack Query invalide automatiquement le cache.
-   - Bob apparaît instantanément dans la table avec le badge vert **`ANALYST`**.
+1. Allez sur `/members` et ajoutez un nouveau membre avec le rôle `ANALYST`.
 
 ---
 
 ### Étape 4 : Création d'une Instance & Affichage Sécurisé des Clés (EPIC-02)
-1. Cliquez sur **"Instances & Clés"** dans la Sidebar (`/instances`).
-2. Cliquez sur **"Nouvelle Instance"**.
-3. Renseignez :
-   - Nom de l'Instance : `Application Web E-Commerce`
-   - Nom de domaine (FQDN) : `shop.acme-enterprise.com`
-   - Environnement : `PRODUCTION`
-4. Cliquez sur **"Générer l'Instance et Clés"**.
-5. **Comportement attendu** :
-   - L'instance est enregistrée en BDD.
-   - Les clés sont hachées en SHA-256 dans PostgreSQL.
-   - Le **Modal de Sécurité** s'ouvre et affiche en clair :
-     - **Clé Publique SDK** : `pk_live_...`
-     - **Clé Privée Push** : `sk_live_...`
-6. Cliquez sur l'icône **Copier** pour chaque clé et vérifiez le message de confirmation.
-7. Fermez le modal : Dans le tableau, les clés apparaissent masquées (ex: `pk_live_••••••••`).
+1. Allez sur `/instances` et créez l'instance `shop.acme-enterprise.com`.
+2. Obtenez les clés `pk_live_...` et `sk_live_...`.
 
 ---
 
 ### Étape 5 : Test de Rotation des Clés API (EPIC-02)
-1. Dans la ligne de l'instance créée, cliquez sur **"Rotate SDK"** ou **"Rotate Push"**.
-2. Un message de confirmation vous avertit que l'ancienne clé sera immédiatement révoquée.
-3. Validez la confirmation.
-4. **Comportement attendu** :
-   - L'Action `RotateApiKeysAction` supprime l'ancien hash SHA-256 en BDD et enregistre le nouveau hash.
-   - Le modal s'ouvre avec la nouvelle clé brute régénérée.
+1. Cliquez sur **"Rotate SDK"** pour régénérer la clé d'API.
 
 ---
 
-### Étape 6 : Test de Collecte d'Événements SDK Web (EPIC-03)
-Exécutez cette commande cURL en remplaçant `pk_live_...` par la clé publique de votre instance :
-
+### Étape 6 : Test de Collecte d'Événements SDK Web (EPIC-03 & EPIC-04)
 ```bash
 curl -X POST http://localhost:8000/api/v1/telemetry/sdk \
   -H "Content-Type: application/json" \
+  -H "User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36" \
   -H "X-SDK-Key: pk_live_votre_cle_publique_sdk" \
   -d '{
     "eventName": "page_view",
@@ -171,13 +143,10 @@ curl -X POST http://localhost:8000/api/v1/telemetry/sdk \
     }
   }'
 ```
-- **Comportement attendu** : HTTP `201 Created` avec la confirmation de l'événement et son `eventId`. L'adresse IP cliente est anonymisée en base de données dans la table `raw_events`.
 
 ---
 
-### Étape 7 : Test d'Ingestion API Push Privée Serveur-à-Serveur (EPIC-03)
-Exécutez cette commande cURL avec la clé privée `sk_live_...` :
-
+### Étape 7 : Test d'Ingestion API Push Privée Serveur-à-Serveur (EPIC-03 & EPIC-04)
 ```bash
 curl -X POST http://localhost:8000/api/v1/telemetry/push \
   -H "Content-Type: application/json" \
@@ -191,46 +160,51 @@ curl -X POST http://localhost:8000/api/v1/telemetry/push \
     }
   }'
 ```
-- **Comportement attendu** : HTTP `201 Created` avec statut `ACCEPTED`. L'événement métier est immédiatement inséré dans la table `raw_events`.
+
+---
+
+### Étape 8 : Test du Moteur d'Agrégation des Métriques (EPIC-05)
+```bash
+php artisan metrics:aggregate
+```
+
+---
+
+### Étape 9 : Visualisation sur le Tableau de Bord Analytics (EPIC-06)
+1. Ouvrez l'URL : **`http://localhost:3000/analytics`**.
+2. Consultez les cartes KPIs et graphiques interactifs.
+
+---
+
+### Étape 10 : Exportation des Rapports CSV (EPIC-07)
+```bash
+curl -X POST http://localhost:8000/api/v1/reports/export \
+  -H "Content-Type: application/json" \
+  -d '{
+    "instanceId": "votre_instance_id",
+    "format": "csv"
+  }'
+```
+- **Comportement attendu** : HTTP `201 Created` avec lien de téléchargement et nombre d'enregistrements exportés.
 
 ---
 
 ## 5. Exécution des Tests Automatisés & Qualité
 
-Pour valider l'intégrité du code avant tout déploiement :
-
-### Tests Unitaires & Intégration Backend (PHPUnit)
 ```bash
+# Tests Backend (PHPUnit)
 cd backend
-vendor/bin/phpunit
-```
-- **Vérifie** : La validation des formats FQDN, le hachage SHA-256 des clés API, l'enregistrement atomique des Tenants et l'ingestion d'événements SDK/Push (EPIC-03).
+php artisan test
 
-### Contrôle Qualité du Code Backend (Laravel Pint)
-```bash
-cd backend
-vendor/bin/pint
-```
-
-### Vérification Statique & Typecheck Frontend (TypeScript)
-```bash
-cd frontend
-npx tsc --noEmit
-```
-
-### Build de Production Frontend
-```bash
+# Build Frontend (Next.js 16)
 cd frontend
 npm run build
 ```
-- **Vérifie** : La compilation sans avertissement de toutes les routes Next.js 16.
 
 ---
 
 ## 6. Documentation Interactive API (OpenAPI / Swagger)
 
-La spécification OpenAPI est générée automatiquement par API Platform. Vous pouvez la consulter et tester les endpoints directement depuis votre navigateur à l'adresse :
+La spécification OpenAPI est disponible et testable en direct sur :
 
 👉 **`http://localhost:8000/docs`** (ou `http://localhost:8000/api`)
-
-
