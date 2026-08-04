@@ -64,8 +64,10 @@ RUN chmod +x /app/entrypoint.sh
 ENV PORT=80
 EXPOSE 80
 
+# frankenphp php-server ignore $PORT et ecoute sur 80 : l ecoute est donc figee
+# explicitement dans le CMD, et la sonde vise ce meme port.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-    CMD curl -f "http://127.0.0.1:${PORT:-80}/up" || exit 1
+    CMD curl -f http://127.0.0.1:80/up || exit 1
 
 ENTRYPOINT ["/app/entrypoint.sh"]
-CMD ["frankenphp", "php-server", "--root", "public/"]
+CMD ["frankenphp", "php-server", "--root", "public/", "--listen", ":80"]
