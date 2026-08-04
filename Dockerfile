@@ -65,7 +65,7 @@ ENV PORT=80
 EXPOSE 80
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-    CMD curl -f http://127.0.0.1:80/up || exit 1
+    CMD curl -f "http://127.0.0.1:${PORT:-80}/up" || exit 1
 
 ENTRYPOINT ["/app/entrypoint.sh"]
 CMD ["frankenphp", "php-server", "--root", "public/"]
