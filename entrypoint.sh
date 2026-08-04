@@ -11,6 +11,8 @@ mkdir -p \
 chown -R www-data:www-data storage bootstrap/cache
 chmod -R 775 storage bootstrap/cache
 
+php artisan package:discover --ansi
+
 php artisan config:clear
 php artisan config:cache
 
