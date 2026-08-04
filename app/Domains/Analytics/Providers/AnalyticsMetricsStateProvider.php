@@ -11,6 +11,7 @@ use App\Domains\Analytics\Resources\AnalyticsMetricsResource;
 use App\Domains\Ingestion\Infrastructure\Models\RawEventModel;
 use App\Domains\Instance\Infrastructure\Models\InstanceModel;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Http;
 
 class AnalyticsMetricsStateProvider implements ProviderInterface
 {
@@ -26,8 +27,46 @@ class AnalyticsMetricsStateProvider implements ProviderInterface
             $instanceId = $firstInstance?->id ?? 'default';
         }
 
+        // Proxy Intermédiaire : Interroger directement le backend de l'instance client sans enregistrer en BDD Core
+        $instance = InstanceModel::find($instanceId);
+        if ($instance && ! empty($instance->domain)) {
+            $domain = rtrim((string) $instance->domain, '/');
+            if (! str_starts_with($domain, 'http')) {
+                $domain = 'http://' . $domain;
+            }
+            try {
+                $response = Http::timeout(3)->post("{$domain}/metrics-dash/api/metrics", [
+                    'startDate' => $startDateStr,
+                    'endDate' => $endDateStr,
+                ]);
+
+                if ($response->successful()) {
+                    $remoteData = $response->json();
+
+                    $resource = new AnalyticsMetricsResource();
+                    $resource->instanceId = (string) $instanceId;
+                    $resource->startDate = (string) $startDateStr;
+                    $resource->endDate = (string) $endDateStr;
+                    $resource->kpis = $remoteData['kpis'] ?? [];
+                    $resource->financialKpis = $remoteData['financialKpis'] ?? [];
+                    $resource->packBreakdown = $remoteData['packBreakdown'] ?? [];
+                    $resource->timeSeries = $remoteData['timeSeries'] ?? [];
+                    $resource->revenueTimeSeries = $remoteData['revenueTimeSeries'] ?? [];
+                    $resource->deviceBreakdown = $remoteData['deviceBreakdown'] ?? [];
+                    $resource->browserBreakdown = $remoteData['browserBreakdown'] ?? [];
+                    $resource->recentTransactions = $remoteData['recentTransactions'] ?? [];
+
+                    return [$resource];
+                }
+            } catch (\Throwable $e) {
+                // En cas d'instance injoignable, basculer sur le calcul local
+            }
+        }
+
         $startDate = Carbon::parse($startDateStr)->startOfDay();
         $endDate = Carbon::parse($endDateStr)->endOfDay();
+
+
 
         // 1. Récupérer les métriques d'audience consolidées depuis daily_metrics
         $metrics = DailyMetricModel::where('instance_id', $instanceId)
@@ -71,29 +110,23 @@ class AnalyticsMetricsStateProvider implements ProviderInterface
             ->whereBetween('occurred_at', [$startDate, $endDate])
             ->where(function ($q) {
                 $q->where('event_type', 'BUSINESS')
-                  ->orWhereIn('event_name', ['order_completed', 'payment_success', 'subscription_created', 'checkout_success']);
+                    ->orWhereIn('event_name', ['order_completed', 'payment_success', 'subscription_created', 'checkout_success']);
             })
             ->orderBy('occurred_at', 'asc')
             ->get();
 
         $totalRevenue = 0.0;
         $totalTransactions = count($businessEvents);
-
-        $packMap = [
-            'Pack Starter' => ['revenue' => 0.0, 'count' => 0, 'price' => 29],
-            'Pack Pro' => ['revenue' => 0.0, 'count' => 0, 'price' => 79],
-            'Pack Enterprise' => ['revenue' => 0.0, 'count' => 0, 'price' => 199],
-            'Pack Custom' => ['revenue' => 0.0, 'count' => 0, 'price' => 499],
-        ];
-
+        $packMap = [];
         $dailyRevenueMap = [];
+        $recentTransactions = [];
 
         foreach ($businessEvents as $event) {
             $payload = $event->payload ?? [];
             $data = $payload['eventData'] ?? $payload;
 
-            $amount = (float) ($data['amount'] ?? $data['price'] ?? 120.00);
-            $packName = $data['pack'] ?? $data['plan'] ?? null;
+            $amount = (float) ($data['amount'] ?? $data['price'] ?? 0.0);
+            $packName = trim((string) ($data['pack'] ?? $data['plan'] ?? $data['pack_name'] ?? $data['name'] ?? 'Formule Standard'));
             $dateKey = Carbon::parse($event->occurred_at)->format('Y-m-d');
 
             $totalRevenue += $amount;
@@ -104,37 +137,51 @@ class AnalyticsMetricsStateProvider implements ProviderInterface
             $dailyRevenueMap[$dateKey]['revenue'] += $amount;
             $dailyRevenueMap[$dateKey]['transactions']++;
 
-            // Ventilation dynamique par pack
-            if ($packName && isset($packMap[$packName])) {
+            // Ventilation dynamique par vrais packs de la BDD du client
+            if ($packName !== '') {
+                if (! isset($packMap[$packName])) {
+                    $packMap[$packName] = [
+                        'revenue' => 0.0,
+                        'count' => 0,
+                        'price' => $amount,
+                    ];
+                }
                 $packMap[$packName]['revenue'] += $amount;
                 $packMap[$packName]['count']++;
-            } else {
-                if ($amount >= 300) {
-                    $packMap['Pack Custom']['revenue'] += $amount;
-                    $packMap['Pack Custom']['count']++;
-                } elseif ($amount >= 150) {
-                    $packMap['Pack Enterprise']['revenue'] += $amount;
-                    $packMap['Pack Enterprise']['count']++;
-                } elseif ($amount >= 60) {
-                    $packMap['Pack Pro']['revenue'] += $amount;
-                    $packMap['Pack Pro']['count']++;
-                } else {
-                    $packMap['Pack Starter']['revenue'] += $amount;
-                    $packMap['Pack Starter']['count']++;
-                }
             }
+
+            // Conserver les détails de la transaction pour la table analytique
+            $recentTransactions[] = [
+                'orderId' => (string) ($data['orderId'] ?? 'PAY-' . rand(1000, 9999)),
+                'userName' => (string) ($data['userName'] ?? $data['user_name'] ?? 'Client Anonyme'),
+                'userEmail' => (string) ($data['userEmail'] ?? $data['user_email'] ?? 'client@domaine.com'),
+                'pack' => $packName,
+                'amount' => $amount,
+                'currency' => (string) ($data['currency'] ?? 'EUR'),
+                'date' => (string) ($data['date'] ?? Carbon::parse($event->occurred_at)->format('Y-m-d H:i')),
+                'status' => (string) ($data['status'] ?? 'VALIDATED'),
+            ];
         }
 
-        // Calcul des pourcentages de chaque pack
+        // Trier par date décroissante pour afficher les transactions récentes
+        usort($recentTransactions, function ($a, $b) {
+            return strcmp($b['date'], $a['date']);
+        });
+        $recentTransactions = array_slice($recentTransactions, 0, 50);
+
+        // Calcul des pourcentages de chaque pack réel
         foreach ($packMap as $k => $p) {
             $packMap[$k]['percentage'] = $totalRevenue > 0
                 ? round(($p['revenue'] / $totalRevenue) * 100, 1)
                 : 0;
+            $packMap[$k]['revenue'] = round($packMap[$k]['revenue'], 2);
         }
 
         $mrr = round($totalRevenue * 0.85, 2);
         $averageOrderValue = $totalTransactions > 0 ? round($totalRevenue / $totalTransactions, 2) : 0;
         $financialConversionRate = $uniqueVisitors > 0 ? round(($totalTransactions / max(1, $uniqueVisitors)) * 100, 2) : 0;
+
+
 
         // 3. Séries temporelles dynamiques d'audience et de Chiffre d'Affaires
         $timeSeriesRaw = $metrics->groupBy('date');
@@ -236,7 +283,9 @@ class AnalyticsMetricsStateProvider implements ProviderInterface
         $resource->revenueTimeSeries = $revenueTimeSeries;
         $resource->deviceBreakdown = $deviceBreakdown;
         $resource->browserBreakdown = $browserBreakdown;
+        $resource->recentTransactions = $recentTransactions;
 
         return [$resource];
+
     }
 }

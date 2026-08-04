@@ -13,20 +13,28 @@ final readonly class DomainName
     public function __construct(string $value)
     {
         $raw = trim($value);
-        $host = parse_url($raw, PHP_URL_HOST);
-        if (! is_string($host) || empty($host)) {
-            $parsed = parse_url('http://'.$raw, PHP_URL_HOST);
-            $host = is_string($parsed) ? $parsed : $raw;
+
+        $parsed = parse_url($raw);
+        if (! isset($parsed['scheme']) && ! isset($parsed['host'])) {
+            $parsed = parse_url('http://'.$raw);
         }
 
-        $cleaned = strtolower(trim($host, '/'));
+        $scheme = isset($parsed['scheme']) ? strtolower($parsed['scheme']) : '';
+        $host = isset($parsed['host']) ? strtolower($parsed['host']) : '';
+        $port = isset($parsed['port']) ? ':'.$parsed['port'] : '';
 
-        if (empty($cleaned) || (! filter_var($cleaned, FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME) && $cleaned !== 'localhost')) {
+        if (empty($host) || (! filter_var($host, FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME) && $host !== 'localhost' && ! filter_var($host, FILTER_VALIDATE_IP))) {
             throw InvalidDomainException::forDomain($value);
         }
 
-        $this->value = $cleaned;
+        if (! empty($port)) {
+            $this->value = ($scheme ? $scheme.'://' : '').$host.$port;
+        } else {
+            $this->value = $host;
+        }
     }
+
+
 
     public static function fromString(string $domain): self
     {

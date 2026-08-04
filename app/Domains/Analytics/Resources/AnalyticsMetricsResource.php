@@ -51,4 +51,8 @@ class AnalyticsMetricsResource
 
     #[ApiProperty(description: 'Ventilation du trafic par navigateur (Chrome, Safari, Firefox, Edge)')]
     public array $browserBreakdown = [];
+
+    #[ApiProperty(description: 'Dernières transactions enregistrées avec détails acheteurs et packs')]
+    public array $recentTransactions = [];
 }
+

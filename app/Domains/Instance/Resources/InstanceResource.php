@@ -36,6 +36,22 @@ use App\Domains\Instance\Providers\InstanceStateProvider;
             provider: InstanceStateProvider::class,
             description: 'Récupère les détails et l\'état d\'une instance spécifique.'
         ),
+        new \ApiPlatform\Metadata\Patch(
+            uriTemplate: '/api/v1/instances/{id}',
+            middleware: ['auth:sanctum'],
+            read: false,
+            inputFormats: ['json' => ['application/json', 'application/merge-patch+json']],
+            processor: \App\Domains\Instance\Processors\UpdateInstanceStateProcessor::class,
+            description: 'Modifie le nom, le domaine FQDN ou l\'environnement d\'une instance.'
+        ),
+        new \ApiPlatform\Metadata\Put(
+            uriTemplate: '/api/v1/instances/{id}',
+            middleware: ['auth:sanctum'],
+            read: false,
+            processor: \App\Domains\Instance\Processors\UpdateInstanceStateProcessor::class,
+            description: 'Met à jour le nom, le domaine FQDN ou l\'environnement d\'une instance.'
+        ),
+
         new Post(
             uriTemplate: '/api/v1/instances/{id}/rotate-keys',
             middleware: ['auth:sanctum'],
@@ -44,6 +60,7 @@ use App\Domains\Instance\Providers\InstanceStateProvider;
         ),
     ]
 )]
+
 class InstanceResource
 {
     #[ApiProperty(description: 'Identifiant UUID unique de l\'instance')]
