@@ -1,59 +1,119 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# MetricsDash Enterprise — Backend Engine ⚡
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Moteur d'ingestion et d'analyse haute performance multi-tenant développé avec **Laravel 12**, **API Platform / REST Architecture** et **Eloquent ORM**.
 
-## About Laravel
+---
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## 🚀 Fonctionnalités Principales
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+- 🔐 **Sécurité & RBAC Multi-Tenant** : Isolation stricte des données analytiques par instance et par tenant (`X-Tenant-Id`).
+- 📊 **Agrégation Analytique Temps Réel** : Calcul dynamique du Chiffre d'Affaires total (€), MRR, Panier Moyen (AOV) et ventilation par offres/packs.
+- ⚡ **Proxy d'Instance Intermédiaire** : Interrogation directe des bases client via les clés SDK (`X-Push-Secret-Key`, `X-Instance-ID`).
+- 📦 **Support SDK Client** : Endpoints REST et WebSocket pour la synchronisation automatique des transactions et événements.
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+---
 
-## Learning Laravel
+## 📋 Prérequis
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+- **PHP** : `>= 8.2` (extensions `pdo`, `mbstring`, `openssl`, `json`, `sqlite3` ou `pdo_mysql`/`pdo_pgsql`)
+- **Composer** : `>= 2.x`
+- **Base de données** : SQLite (par défaut pour dev) ou PostgreSQL / MySQL
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+---
 
-## Laravel Sponsors
+## 🛠️ Guide d'Installation Complète
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+### 1. Cloner le projet et accéder au dossier backend
 
-### Premium Partners
+```bash
+cd backend
+```
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+### 2. Installer les dépendances PHP via Composer
 
-## Contributing
+```bash
+composer install
+```
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+### 3. Configurer les variables d'environnement (`.env`)
 
-## Code of Conduct
+Copiez le fichier d'exemple `.env.example` pour créer votre `.env` :
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+```bash
+cp .env.example .env
+```
 
-## Security Vulnerabilities
+Générez ensuite la clé d'application unique :
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+```bash
+php artisan key:generate
+```
 
-## License
+Assurez-vous que la configuration de la base de données est correcte dans `.env` :
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+```env
+APP_NAME="MetricsDash Engine"
+APP_ENV=local
+APP_KEY=base64:...
+APP_DEBUG=true
+APP_URL=http://localhost:8000
+
+DB_CONNECTION=sqlite
+# Pour SQLite (créer le fichier si nécessaire) :
+# DB_DATABASE=database/database.sqlite
+```
+
+Si vous utilisez SQLite, créez le fichier de base de données :
+
+```bash
+touch database/database.sqlite
+```
+
+### 4. Exécuter les migrations et les seeders de données initiales
+
+```bash
+php artisan migrate --seed
+```
+
+Cela créera la structure des tables (`instances`, `tenants`, `users`, `raw_events`, `payments`, `packs`) et alimentera la base avec les comptes administrateurs de test.
+
+### 5. Démarrer le serveur de développement Laravel
+
+```bash
+php artisan serve --port=8000
+```
+
+Le serveur backend est accessible à l'adresse : **`http://localhost:8000`**
+
+---
+
+## 🧪 Tests & Qualité de Code
+
+Exécutez la suite de tests PHPUnit / Pest :
+
+```bash
+php artisan test
+```
+
+Vérifiez le style du code avec Laravel Pint :
+
+```bash
+vendor/bin/pint
+```
+
+---
+
+## 📡 Endpoints API Principaux
+
+| Méthode | Endpoint | Description |
+| :--- | :--- | :--- |
+| `POST` | `/api/v1/auth/login` | Authentification utilisateur & génération du jeton |
+| `GET` | `/api/v1/instances` | Liste des instances autorisées pour le tenant |
+| `GET` | `/api/v1/analytics/metrics` | Métriques financières et graphiques (filtres `instanceId`, `startDate`, `endDate`) |
+| `POST` | `/api/v1/telemetry/push` | Ingestion d'événements haute fréquence par clé Push |
+
+---
+
+## 📜 Licence
+
+Ce projet est sous licence propriétaire pour **MetricsDash Enterprise**.
