@@ -12,8 +12,6 @@ storage/framework/views/*
 storage/framework/testing
 storage/logs/*
 public/build
-tests
-phpunit.xml
 README.md
 USAGE.md
 Dockerfile

@@ -46,7 +46,7 @@ RUN { \
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
 COPY composer.json composer.lock ./
-RUN composer install --no-interaction --no-scripts --no-autoloader --no-dev
+RUN composer install --no-interaction --no-scripts --no-autoloader
 
 COPY . .
 COPY --from=assets /build/public/build ./public/build
@@ -54,7 +54,7 @@ COPY --from=assets /build/public/build ./public/build
 # --no-scripts : post-autoload-dump lance `artisan package:discover`, qui
 # demarrerait le framework sans .env ni APP_KEY. La decouverte est faite au
 # demarrage du conteneur, ou la configuration reelle est presente.
-RUN composer dump-autoload --optimize --no-dev --no-scripts
+RUN composer dump-autoload --optimize --no-scripts
 
 RUN chown -R www-data:www-data storage bootstrap/cache \
     && chmod -R 775 storage bootstrap/cache
