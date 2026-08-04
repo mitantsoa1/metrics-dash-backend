@@ -23,12 +23,32 @@ class AnalyticsMetricsStateProvider implements ProviderInterface
         $endDateStr = $request->query('endDate', date('Y-m-d'));
 
         if (! $instanceId) {
-            $firstInstance = InstanceModel::first();
-            $instanceId = $firstInstance?->id ?? 'default';
+            $resource = new AnalyticsMetricsResource();
+            $resource->instanceId = '';
+            $resource->startDate = (string) $startDateStr;
+            $resource->endDate = (string) $endDateStr;
+            $resource->kpis = ['page_views' => 0, 'unique_visitors' => 0, 'sessions' => 0, 'conversions' => 0, 'bounce_rate' => 0];
+            $resource->financialKpis = ['total_revenue' => 0, 'mrr' => 0, 'average_order_value' => 0, 'total_transactions' => 0, 'conversion_rate' => 0];
+            $resource->packBreakdown = [];
+            $resource->timeSeries = [];
+            $resource->revenueTimeSeries = [];
+            $resource->deviceBreakdown = ['DESKTOP' => 0, 'MOBILE' => 0, 'TABLET' => 0, 'BOT' => 0];
+            $resource->browserBreakdown = ['Chrome' => 0, 'Safari' => 0, 'Firefox' => 0, 'Edge' => 0];
+            $resource->recentTransactions = [];
+
+            return [$resource];
         }
 
-        // Proxy Intermédiaire : Interroger directement le backend de l'instance client sans enregistrer en BDD Core
         $instance = InstanceModel::find($instanceId);
+        if (! $instance) {
+            return [];
+        }
+
+        // Sécurité et isolation Multi-Tenant: interdire l'accès aux instances hors tenant
+        $tenantHeader = $request->header('X-Tenant-Id');
+        if ($tenantHeader && $instance->tenant_id !== $tenantHeader) {
+            return [];
+        }
         if ($instance && ! empty($instance->domain)) {
             $domain = rtrim((string) $instance->domain, '/');
             if (! str_starts_with($domain, 'http')) {
