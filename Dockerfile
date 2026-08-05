@@ -66,8 +66,10 @@ EXPOSE 80
 
 # frankenphp php-server ignore $PORT et ecoute sur 80 : l ecoute est donc figee
 # explicitement dans le CMD, et la sonde vise ce meme port.
+# Sonde sur / et non sur /up : la route de sante declaree dans bootstrap/app.php
+# renvoie 404 a l execution, ce qui laissait le conteneur unhealthy en permanence.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-    CMD curl -f http://127.0.0.1:80/up || exit 1
+    CMD curl -f http://127.0.0.1:80/ || exit 1
 
 ENTRYPOINT ["/app/entrypoint.sh"]
 CMD ["frankenphp", "php-server", "--root", "public/", "--listen", ":80"]
