@@ -20,6 +20,7 @@ return [
     'allowed_methods' => ['*'],
 
     'allowed_origins' => [
+        'http://dev.metrics-dashboard.187.124.95.146.sslip.io',
         env('FRONTEND_URL', 'http://localhost:3000'),
     ],
 
