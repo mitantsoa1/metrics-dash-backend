@@ -116,9 +116,14 @@ class SuperadminAndAdminPermissionsTest extends TestCase
             'role' => UserRole::ANALYST->value,
         ]);
 
-        // 4. Delete member
+        // 4. Delete member (Soft Delete with deleted_name & deleted_email recorded)
         $responseDelete = $this->actingAs($admin)->deleteJson("/api/v1/members/{$member2->id}");
         $responseDelete->assertStatus(204);
-        $this->assertDatabaseMissing('users', ['id' => $member2->id]);
+        $this->assertSoftDeleted('users', ['id' => $member2->id]);
+        $this->assertDatabaseHas('users', [
+            'id' => $member2->id,
+            'deleted_name' => 'Updated Member Name',
+            'deleted_email' => 'member2@example.com',
+        ]);
     }
 }

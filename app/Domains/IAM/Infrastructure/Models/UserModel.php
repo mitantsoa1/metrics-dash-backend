@@ -5,12 +5,13 @@ declare(strict_types=1);
 namespace App\Domains\IAM\Infrastructure\Models;
 
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Laravel\Sanctum\HasApiTokens;
 
 class UserModel extends Authenticatable
 {
-    use HasApiTokens;
+    use HasApiTokens, SoftDeletes;
 
     protected $table = 'users';
 
@@ -26,6 +27,9 @@ class UserModel extends Authenticatable
         'password',
         'email_verified_at',
         'role',
+        'deleted_name',
+        'deleted_email',
+        'deleted_at',
     ];
 
     protected $hidden = [

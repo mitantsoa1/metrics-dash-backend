@@ -66,7 +66,14 @@ class EloquentUserRepository implements UserRepositoryInterface
 
     public function delete(UserId $id): void
     {
-        UserModel::destroy($id->toString());
+        $model = UserModel::find($id->toString());
+        if ($model) {
+            $model->deleted_name = $model->name;
+            $model->deleted_email = $model->email;
+            $model->email = 'deleted_' . time() . '_' . $model->email;
+            $model->save();
+            $model->delete();
+        }
     }
 
     private function toDomain(UserModel $model): User
