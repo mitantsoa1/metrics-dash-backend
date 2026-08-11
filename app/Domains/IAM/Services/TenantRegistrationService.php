@@ -45,12 +45,14 @@ class TenantRegistrationService
             $this->tenantRepository->save($tenant);
 
             $hashedPassword = Hash::make($dto->password);
+            $role = $dto->role !== null ? UserRole::from($dto->role) : UserRole::OWNER;
+
             $owner = User::create(
                 $tenant->getId(),
                 $dto->ownerName,
                 $ownerEmail,
                 $hashedPassword,
-                UserRole::OWNER
+                $role
             );
 
             $this->userRepository->save($owner);

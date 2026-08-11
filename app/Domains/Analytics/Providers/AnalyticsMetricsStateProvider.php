@@ -13,42 +13,45 @@ use App\Domains\Instance\Infrastructure\Models\InstanceModel;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
 
+use App\Domains\IAM\Enums\UserRole;
+
 class AnalyticsMetricsStateProvider implements ProviderInterface
 {
     public function provide(Operation $operation, array $uriVariables = [], array $context = []): array
     {
         $request = request();
+        $user = auth()->user();
         $instanceId = $request->query('instanceId');
         $startDateStr = $request->query('startDate', date('Y-m-d', strtotime('-30 days')));
         $endDateStr = $request->query('endDate', date('Y-m-d'));
 
-        if (! $instanceId) {
-            $resource = new AnalyticsMetricsResource();
-            $resource->instanceId = '';
-            $resource->startDate = (string) $startDateStr;
-            $resource->endDate = (string) $endDateStr;
-            $resource->kpis = ['page_views' => 0, 'unique_visitors' => 0, 'sessions' => 0, 'conversions' => 0, 'bounce_rate' => 0];
-            $resource->financialKpis = ['total_revenue' => 0, 'mrr' => 0, 'average_order_value' => 0, 'total_transactions' => 0, 'conversion_rate' => 0];
-            $resource->packBreakdown = [];
-            $resource->timeSeries = [];
-            $resource->revenueTimeSeries = [];
-            $resource->deviceBreakdown = ['DESKTOP' => 0, 'MOBILE' => 0, 'TABLET' => 0, 'BOT' => 0];
-            $resource->browserBreakdown = ['Chrome' => 0, 'Safari' => 0, 'Firefox' => 0, 'Edge' => 0];
-            $resource->recentTransactions = [];
+        $isSuperAdminOrAdmin = $user && in_array($user->role, [UserRole::SUPERADMIN->value, UserRole::ADMIN->value], true);
 
-            return [$resource];
+        // Si une instance spécifique est demandée, vérifier l'existence et la sécurité tenant
+        if ($instanceId && $instanceId !== 'all') {
+            $instance = InstanceModel::find($instanceId);
+            if (! $instance) {
+                return [];
+            }
+
+            // Sécurité et isolation Multi-Tenant (si non superadmin/admin)
+            if (! $isSuperAdminOrAdmin) {
+                $tenantHeader = $request->header('X-Tenant-Id') ?? $user?->tenant_id;
+                if ($tenantHeader && $instance->tenant_id !== $tenantHeader) {
+                    return [];
+                }
+            }
         }
 
-        $instance = InstanceModel::find($instanceId);
-        if (! $instance) {
-            return [];
-        }
-
-        // Sécurité et isolation Multi-Tenant: interdire l'accès aux instances hors tenant
-        $tenantHeader = $request->header('X-Tenant-Id');
-        if ($tenantHeader && $instance->tenant_id !== $tenantHeader) {
-            return [];
-        }
+        // Closure d'application du filtre d'instance selon le rôle et le paramètre instanceId
+        $applyInstanceFilter = function ($query) use ($instanceId, $isSuperAdminOrAdmin, $user) {
+            if ($instanceId && $instanceId !== 'all') {
+                $query->where('instance_id', $instanceId);
+            } elseif (! $isSuperAdminOrAdmin && $user?->tenant_id) {
+                $tenantInstanceIds = InstanceModel::where('tenant_id', $user->tenant_id)->pluck('id')->all();
+                $query->whereIn('instance_id', $tenantInstanceIds);
+            }
+        };
         if ($instance && ! empty($instance->domain)) {
             $domain = rtrim((string) $instance->domain, '/');
             if (! str_starts_with($domain, 'http')) {
@@ -89,7 +92,7 @@ class AnalyticsMetricsStateProvider implements ProviderInterface
 
 
         // 1. Récupérer les métriques d'audience consolidées depuis daily_metrics
-        $metrics = DailyMetricModel::where('instance_id', $instanceId)
+        $metrics = DailyMetricModel::where($applyInstanceFilter)
             ->whereBetween('date', [$startDateStr, $endDateStr])
             ->get();
 
@@ -100,24 +103,24 @@ class AnalyticsMetricsStateProvider implements ProviderInterface
 
         // Fallback live depuis raw_events si daily_metrics n'a pas encore été agrégé pour l'instance
         if ($pageViews === 0 && $uniqueVisitors === 0) {
-            $pageViews = RawEventModel::where('instance_id', $instanceId)
+            $pageViews = RawEventModel::where($applyInstanceFilter)
                 ->whereBetween('occurred_at', [$startDate, $endDate])
                 ->where('event_name', 'page_view')
                 ->count();
 
-            $uniqueVisitors = RawEventModel::where('instance_id', $instanceId)
+            $uniqueVisitors = RawEventModel::where($applyInstanceFilter)
                 ->whereBetween('occurred_at', [$startDate, $endDate])
                 ->whereNotNull('visitor_id')
                 ->distinct('visitor_id')
                 ->count('visitor_id');
 
-            $sessions = RawEventModel::where('instance_id', $instanceId)
+            $sessions = RawEventModel::where($applyInstanceFilter)
                 ->whereBetween('occurred_at', [$startDate, $endDate])
                 ->whereNotNull('session_id')
                 ->distinct('session_id')
                 ->count('session_id');
 
-            $conversions = RawEventModel::where('instance_id', $instanceId)
+            $conversions = RawEventModel::where($applyInstanceFilter)
                 ->whereBetween('occurred_at', [$startDate, $endDate])
                 ->where('event_type', 'BUSINESS')
                 ->count();
@@ -126,7 +129,7 @@ class AnalyticsMetricsStateProvider implements ProviderInterface
         $bounceRate = $sessions > 0 ? max(5, round(100 - (($conversions / max(1, $sessions)) * 100), 1)) : 0;
 
         // 2. Calcul DYNAMIQUE du Chiffre d'Affaires et des Packs à partir de la table raw_events
-        $businessEvents = RawEventModel::where('instance_id', $instanceId)
+        $businessEvents = RawEventModel::where($applyInstanceFilter)
             ->whereBetween('occurred_at', [$startDate, $endDate])
             ->where(function ($q) {
                 $q->where('event_type', 'BUSINESS')
@@ -224,7 +227,7 @@ class AnalyticsMetricsStateProvider implements ProviderInterface
                     'conversions' => (int) ($items->where('metric_name', 'conversions')->first()?->metric_value ?? 0),
                 ];
             } else {
-                $dayEvents = RawEventModel::where('instance_id', $instanceId)
+                $dayEvents = RawEventModel::where($applyInstanceFilter)
                     ->whereDate('occurred_at', $dateStr)
                     ->get();
 
@@ -254,7 +257,7 @@ class AnalyticsMetricsStateProvider implements ProviderInterface
         }
 
         // 4. Répartition dynamique des appareils et navigateurs
-        $rawEvents = RawEventModel::where('instance_id', $instanceId)
+        $rawEvents = RawEventModel::where($applyInstanceFilter)
             ->whereBetween('occurred_at', [$startDate, $endDate])
             ->limit(1000)
             ->get();

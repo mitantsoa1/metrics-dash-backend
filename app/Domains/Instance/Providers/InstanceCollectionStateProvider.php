@@ -10,6 +10,8 @@ use App\Domains\IAM\ValueObjects\TenantId;
 use App\Domains\Instance\Resources\InstanceResource;
 use App\Domains\Instance\Services\InstanceProvisioningService;
 
+use App\Domains\IAM\Enums\UserRole;
+
 class InstanceCollectionStateProvider implements ProviderInterface
 {
     public function __construct(
@@ -21,12 +23,20 @@ class InstanceCollectionStateProvider implements ProviderInterface
      */
     public function provide(Operation $operation, array $uriVariables = [], array $context = []): array
     {
-        $tenantIdStr = $uriVariables['tenantId'] ?? request()?->route('tenantId') ?? auth()->user()?->tenant_id ?? null;
-        if (! $tenantIdStr) {
-            return [];
-        }
+        $user = auth()->user();
+        $tenantIdStr = $uriVariables['tenantId'] ?? request()?->route('tenantId');
 
-        $dtos = $this->provisioningService->getInstancesByTenant(TenantId::fromString($tenantIdStr));
+        $isSuperAdminOrAdmin = $user && in_array($user->role, [UserRole::SUPERADMIN->value, UserRole::ADMIN->value], true);
+
+        if ($tenantIdStr === 'all' || ($isSuperAdminOrAdmin && ! $tenantIdStr)) {
+            $dtos = $this->provisioningService->getAllInstances();
+        } else {
+            $tenantIdStr = $tenantIdStr ?? $user?->tenant_id;
+            if (! $tenantIdStr) {
+                return [];
+            }
+            $dtos = $this->provisioningService->getInstancesByTenant(TenantId::fromString($tenantIdStr));
+        }
 
         return array_map(function ($dto) {
             $resource = new InstanceResource;

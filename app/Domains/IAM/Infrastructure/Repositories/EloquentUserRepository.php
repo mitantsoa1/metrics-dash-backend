@@ -42,6 +42,13 @@ class EloquentUserRepository implements UserRepositoryInterface
         return $models->map(fn (UserModel $model) => $this->toDomain($model))->all();
     }
 
+    public function findAll(): array
+    {
+        $models = UserModel::all();
+
+        return $models->map(fn (UserModel $model) => $this->toDomain($model))->all();
+    }
+
     public function save(User $user): void
     {
         UserModel::updateOrCreate(

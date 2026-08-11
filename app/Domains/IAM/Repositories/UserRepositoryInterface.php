@@ -20,6 +20,11 @@ interface UserRepositoryInterface
      */
     public function findByTenantId(TenantId $tenantId): array;
 
+    /**
+     * @return array<int, User>
+     */
+    public function findAll(): array;
+
     public function save(User $user): void;
 
     public function delete(UserId $id): void;

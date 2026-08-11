@@ -25,6 +25,12 @@ use App\Domains\Instance\Providers\InstanceStateProvider;
             description: 'Crée une nouvelle instance client et génère les paires de clés SDK et Push.'
         ),
         new GetCollection(
+            uriTemplate: '/api/v1/instances',
+            middleware: ['auth:sanctum'],
+            provider: InstanceCollectionStateProvider::class,
+            description: 'Liste l\'ensemble des instances configurées sur la plateforme (accès Superadmin/Admin).'
+        ),
+        new GetCollection(
             uriTemplate: '/api/v1/tenants/{tenantId}/instances',
             middleware: ['auth:sanctum'],
             provider: InstanceCollectionStateProvider::class,

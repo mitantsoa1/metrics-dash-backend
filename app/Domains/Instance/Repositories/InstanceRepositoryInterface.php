@@ -17,6 +17,11 @@ interface InstanceRepositoryInterface
      */
     public function findByTenantId(TenantId $tenantId): array;
 
+    /**
+     * @return array<int, Instance>
+     */
+    public function findAll(): array;
+
     public function save(Instance $instance): void;
 
     public function delete(InstanceId $id): void;
