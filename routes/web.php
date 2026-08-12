@@ -28,5 +28,5 @@ Route::prefix('api/v1/auth')->group(function () {
 
 Route::get('/api/env', function () {
     // return config('app.frontend_url');
-    return env('APP_URL') . " " . env('FRONTEND_URL');
+    return env('APP_URL') . " --- " . env('FRONTEND_URL') . " ****" . config('app.frontend_url');
 });
