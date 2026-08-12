@@ -20,7 +20,7 @@ class AnalyticsMetricsStateProvider implements ProviderInterface
     public function provide(Operation $operation, array $uriVariables = [], array $context = []): array
     {
         $request = request();
-        $user = auth()->user();
+        $user = auth('api')->user();
         $instanceId = $request->query('instanceId');
         $startDateStr = $request->query('startDate', date('Y-m-d', strtotime('-30 days')));
         $endDateStr = $request->query('endDate', date('Y-m-d'));
@@ -58,10 +58,17 @@ class AnalyticsMetricsStateProvider implements ProviderInterface
                 $domain = 'http://' . $domain;
             }
             try {
-                $response = Http::timeout(3)->post("{$domain}/metrics-dash/api/metrics", [
+                $response = Http::timeout(3)->post("{$domain}/metrics-dash/metrics", [
                     'startDate' => $startDateStr,
                     'endDate' => $endDateStr,
                 ]);
+
+                if (! $response->successful()) {
+                    $response = Http::timeout(3)->post("{$domain}/metrics-dash/api/metrics", [
+                        'startDate' => $startDateStr,
+                        'endDate' => $endDateStr,
+                    ]);
+                }
 
                 if ($response->successful()) {
                     $remoteData = $response->json();
@@ -309,6 +316,5 @@ class AnalyticsMetricsStateProvider implements ProviderInterface
         $resource->recentTransactions = $recentTransactions;
 
         return [$resource];
-
     }
 }
