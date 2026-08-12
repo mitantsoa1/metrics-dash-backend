@@ -51,11 +51,18 @@ class GoogleAuthController extends Controller
         }
 
         $referer = $request->header('Referer');
-        if ($referer) {
+        if ($referer && ! str_contains($referer, 'google.com') && ! str_contains($referer, 'googleusercontent.com')) {
             $parsed = parse_url($referer);
             if (! empty($parsed['scheme']) && ! empty($parsed['host'])) {
                 return $parsed['scheme'] . '://' . $parsed['host'] . (! empty($parsed['port']) ? ':' . $parsed['port'] : '');
             }
+        }
+
+        $host = $request->getHost();
+        if ($host && $host !== 'localhost' && $host !== '127.0.0.1') {
+            $scheme = $request->secure() || config('app.env') === 'production' ? 'https' : 'http';
+            $frontendHost = str_replace('api-', '', str_replace('api.', '', $host));
+            return $scheme . '://' . $frontendHost;
         }
 
         return env('FRONTEND_URL', 'http://localhost:3000');
