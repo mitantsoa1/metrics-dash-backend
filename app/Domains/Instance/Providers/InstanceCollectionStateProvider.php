@@ -46,8 +46,8 @@ class InstanceCollectionStateProvider implements ProviderInterface
             $resource->domain = $dto->domain;
             $resource->environment = $dto->environment;
             $resource->status = $dto->status;
-            $resource->publicSdkKey = $dto->publicSdkPrefix.'••••••••';
-            $resource->privatePushKey = $dto->privatePushPrefix.'••••••••';
+            $resource->publicSdkKey = $dto->publicSdkPrefix;
+            $resource->privatePushKey = $dto->privatePushPrefix;
             $resource->createdAt = $dto->createdAt;
 
             return $resource;

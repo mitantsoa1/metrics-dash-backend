@@ -17,9 +17,12 @@ class ApiKey
         private readonly ApiKeyType $type,
         private readonly string $keyHash,
         private readonly string $prefix,
-        private ?DateTimeImmutable $lastUsedAt,
-        private readonly DateTimeImmutable $createdAt
-    ) {}
+        private readonly ?string $plainKey = null,
+        private ?DateTimeImmutable $lastUsedAt = null,
+        private ?DateTimeImmutable $createdAt = null
+    ) {
+        $this->createdAt = $createdAt ?? new DateTimeImmutable;
+    }
 
     public static function create(
         InstanceId $instanceId,
@@ -35,6 +38,7 @@ class ApiKey
             $type,
             $keyHash,
             $prefix,
+            $plainKey,
             null,
             new DateTimeImmutable
         );
@@ -63,6 +67,11 @@ class ApiKey
     public function getPrefix(): string
     {
         return $this->prefix;
+    }
+
+    public function getPlainKey(): ?string
+    {
+        return $this->plainKey;
     }
 
     public function getLastUsedAt(): ?DateTimeImmutable

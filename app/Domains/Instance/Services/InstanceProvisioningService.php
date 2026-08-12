@@ -129,8 +129,8 @@ class InstanceProvisioningService
                 domain: $instance->getDomain()->toString(),
                 environment: $instance->getEnvironment()->value,
                 status: $instance->getStatus()->value,
-                publicSdkPrefix: $public?->getPrefix() ?? 'pk_live_',
-                privatePushPrefix: $private?->getPrefix() ?? 'sk_live_',
+                publicSdkPrefix: $public?->getPlainKey() ?? $public?->getPrefix() ?? 'pk_live_',
+                privatePushPrefix: $private?->getPlainKey() ?? $private?->getPrefix() ?? 'sk_live_',
                 createdAt: $instance->getCreatedAt()->format(DATE_ATOM)
             );
         }, $instances);
