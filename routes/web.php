@@ -21,6 +21,7 @@ Route::prefix('api/v1/auth')->group(function () {
     Route::post('/forgot-password', [PasswordResetController::class, 'forgotPassword']);
     Route::post('/reset-password', [PasswordResetController::class, 'resetPassword']);
 
+    Route::get('/google/url', [GoogleAuthController::class, 'getUrl']);
     Route::get('/google/redirect', [GoogleAuthController::class, 'redirect']);
     Route::get('/google/callback', [GoogleAuthController::class, 'callback']);
 });

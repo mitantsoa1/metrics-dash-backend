@@ -21,6 +21,31 @@ class GoogleAuthController extends Controller
         private readonly AuditService $auditService
     ) {}
 
+    public function getUrl(Request $request)
+    {
+        $clientId = config('services.google.client_id');
+        if (! $clientId) {
+            return response()->json([
+                'status' => 'error',
+                'error' => 'Veuillez configurer GOOGLE_CLIENT_ID et GOOGLE_CLIENT_SECRET dans le fichier .env.'
+            ], 400);
+        }
+
+        $redirectUri = config('services.google.redirect');
+
+        $driver = Socialite::driver('google')->stateless();
+        if ($redirectUri) {
+            $driver->redirectUrl($redirectUri);
+        }
+
+        $targetUrl = $driver->redirect()->getTargetUrl();
+
+        return response()->json([
+            'status' => 'success',
+            'url' => $targetUrl,
+        ]);
+    }
+
     public function redirect(Request $request)
     {
         $clientId = config('services.google.client_id');
