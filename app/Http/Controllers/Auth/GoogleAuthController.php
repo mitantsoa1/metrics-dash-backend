@@ -21,6 +21,23 @@ class GoogleAuthController extends Controller
         private readonly AuditService $auditService
     ) {}
 
+    private function getResolvedCallbackUrl(): string
+    {
+        $configured = config('services.google.redirect');
+
+        if (! empty($configured)) {
+            if (str_ends_with($configured, '/google/redirect')) {
+                return str_replace('/google/redirect', '/google/callback', $configured);
+            }
+            if (str_ends_with($configured, '/auth/google/redirect')) {
+                return str_replace('/auth/google/redirect', '/auth/google/callback', $configured);
+            }
+            return $configured;
+        }
+
+        return url('/api/v1/auth/google/callback');
+    }
+
     public function getUrl(Request $request)
     {
         $clientId = config('services.google.client_id');
@@ -31,7 +48,7 @@ class GoogleAuthController extends Controller
             ], 400);
         }
 
-        $redirectUri = config('services.google.redirect');
+        $redirectUri = $this->getResolvedCallbackUrl();
 
         $driver = Socialite::driver('google')->stateless();
         if ($redirectUri) {
@@ -54,7 +71,7 @@ class GoogleAuthController extends Controller
             return redirect($frontendUrl . '/callback/google?error=' . urlencode('Veuillez configurer GOOGLE_CLIENT_ID et GOOGLE_CLIENT_SECRET.'));
         }
 
-        $redirectUri = config('services.google.redirect');
+        $redirectUri = $this->getResolvedCallbackUrl();
 
         $driver = Socialite::driver('google')->stateless();
         if ($redirectUri) {
@@ -73,7 +90,7 @@ class GoogleAuthController extends Controller
                 return redirect($frontendUrl . '/callback/google?error=' . urlencode('Authentification Google annulée ou échouée.'));
             }
 
-            $redirectUri = config('services.google.redirect');
+            $redirectUri = $this->getResolvedCallbackUrl();
 
             $driver = Socialite::driver('google')->stateless();
             if ($redirectUri) {
