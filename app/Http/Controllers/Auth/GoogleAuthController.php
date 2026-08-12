@@ -20,7 +20,10 @@ class GoogleAuthController extends Controller
             return redirect($frontendUrl . '/callback/google?error=' . urlencode('Veuillez configurer GOOGLE_CLIENT_ID et GOOGLE_CLIENT_SECRET dans le fichier .env du backend.'));
         }
 
-        return Socialite::driver('google')->stateless()->redirect();
+        return Socialite::driver('google')
+            ->stateless()
+            ->with(['prompt' => 'select_account'])
+            ->redirect();
     }
 
     public function callback(Request $request, GoogleAuthAction $action)
