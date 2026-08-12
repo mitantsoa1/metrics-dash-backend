@@ -8,6 +8,9 @@ final readonly class LoginInputDTO
 {
     public function __construct(
         public string $email,
-        public string $password
+        public string $password,
+        public bool $rememberMe = false,
+        public ?string $ipAddress = null,
+        public ?string $userAgent = null,
     ) {}
 }

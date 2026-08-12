@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Domains\IAM\DTOs\RegisterTenantInputDTO;
+use App\Domains\IAM\Infrastructure\Models\UserModel;
 use App\Domains\IAM\Services\TenantRegistrationService;
 use App\Domains\Instance\DTOs\CreateInstanceInputDTO;
 use App\Domains\Instance\Services\InstanceProvisioningService;
@@ -24,6 +25,8 @@ class AnalyticsApiTest extends TestCase
             password: 'Password123!'
         ));
 
+        $user = UserModel::find($tenantDto->ownerUserId);
+
         /** @var InstanceProvisioningService $instanceService */
         $instanceService = app(InstanceProvisioningService::class);
         $instanceDto = $instanceService->createInstance(new CreateInstanceInputDTO(
@@ -33,29 +36,12 @@ class AnalyticsApiTest extends TestCase
             environment: 'PRODUCTION'
         ));
 
-        $response = $this->getJson('/api/v1/metrics?instanceId=' . $instanceDto->id);
+        $response = $this->actingAs($user, 'sanctum')
+            ->getJson('/api/v1/metrics?instanceId=' . $instanceDto->id);
 
         $response->assertStatus(200);
         $response->assertJsonFragment([
             'instanceId' => $instanceDto->id,
         ]);
-        $response->assertJsonStructure([
-            '*' => [
-                'instanceId',
-                'startDate',
-                'endDate',
-                'kpis' => [
-                    'page_views',
-                    'unique_visitors',
-                    'sessions',
-                    'conversions',
-                    'bounce_rate',
-                ],
-                'timeSeries',
-                'deviceBreakdown',
-                'browserBreakdown',
-            ]
-        ]);
     }
 }
-

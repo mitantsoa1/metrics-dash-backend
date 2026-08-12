@@ -81,6 +81,7 @@ class PasswordResetTest extends TestCase
             'email' => $user->email,
             'token' => $token,
             'password' => 'NewSecretPassword123!',
+            'password_confirmation' => 'NewSecretPassword123!',
         ]);
 
         $response->assertStatus(200);
