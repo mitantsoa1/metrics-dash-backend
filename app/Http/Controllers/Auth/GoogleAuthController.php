@@ -38,6 +38,29 @@ class GoogleAuthController extends Controller
         return url('/api/v1/auth/google/callback');
     }
 
+    private function getFrontendUrl(Request $request): string
+    {
+        $envFrontend = env('FRONTEND_URL');
+        if (! empty($envFrontend) && ! str_contains($envFrontend, 'localhost')) {
+            return rtrim($envFrontend, '/');
+        }
+
+        $configFrontend = config('app.frontend_url');
+        if (! empty($configFrontend) && ! str_contains($configFrontend, 'localhost')) {
+            return rtrim($configFrontend, '/');
+        }
+
+        $referer = $request->header('Referer');
+        if ($referer) {
+            $parsed = parse_url($referer);
+            if (! empty($parsed['scheme']) && ! empty($parsed['host'])) {
+                return $parsed['scheme'] . '://' . $parsed['host'] . (! empty($parsed['port']) ? ':' . $parsed['port'] : '');
+            }
+        }
+
+        return env('FRONTEND_URL', 'http://localhost:3000');
+    }
+
     public function getUrl(Request $request)
     {
         $clientId = config('services.google.client_id');
@@ -65,9 +88,9 @@ class GoogleAuthController extends Controller
 
     public function redirect(Request $request)
     {
+        $frontendUrl = $this->getFrontendUrl($request);
         $clientId = config('services.google.client_id');
         if (! $clientId) {
-            $frontendUrl = config('app.frontend_url', env('FRONTEND_URL', 'http://localhost:3000'));
             return redirect($frontendUrl . '/callback/google?error=' . urlencode('Veuillez configurer GOOGLE_CLIENT_ID et GOOGLE_CLIENT_SECRET.'));
         }
 
@@ -83,7 +106,7 @@ class GoogleAuthController extends Controller
 
     public function callback(Request $request, GoogleAuthAction $action)
     {
-        $frontendUrl = config('app.frontend_url', env('FRONTEND_URL', 'http://localhost:3000'));
+        $frontendUrl = $this->getFrontendUrl($request);
 
         try {
             if ($request->has('error')) {
