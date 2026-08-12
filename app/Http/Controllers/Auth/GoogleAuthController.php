@@ -56,11 +56,11 @@ class GoogleAuthController extends Controller
                 $request->userAgent()
             );
 
-            $redirectUrl = $frontendUrl . '/callback/google?success=true';
+            $redirectUrl = $frontendUrl . '/callback/google?success=true&token=' . urlencode($tokens['access_token']);
             $redirectResponse = redirect($redirectUrl);
 
-            // Convert RedirectResponse into JsonResponse-style cookies or use cookie helper
-            $isSecure = $request->secure() || config('app.env') === 'production';
+            // Convert RedirectResponse into JsonResponse-style cookies
+            $isSecure = $request->secure() || config('app.env') === 'production' || str_starts_with($frontendUrl, 'https://');
             $redirectResponse->cookie(AuthCookieManager::ACCESS_TOKEN_COOKIE, $tokens['access_token'], 15, '/', null, $isSecure, true, false, 'Lax');
             $redirectResponse->cookie(AuthCookieManager::REFRESH_TOKEN_COOKIE, $tokens['refresh_token'], 14 * 1440, '/', null, $isSecure, true, false, 'Lax');
 
