@@ -21,7 +21,7 @@ class GoogleAuthController extends Controller
         private readonly AuditService $auditService
     ) {}
 
-    public function redirect()
+    public function redirect(Request $request)
     {
         $clientId = config('services.google.client_id');
         if (! $clientId) {
@@ -29,10 +29,14 @@ class GoogleAuthController extends Controller
             return redirect($frontendUrl . '/callback/google?error=' . urlencode('Veuillez configurer GOOGLE_CLIENT_ID et GOOGLE_CLIENT_SECRET.'));
         }
 
-        return Socialite::driver('google')
-            ->stateless()
-            ->with(['prompt' => 'select_account'])
-            ->redirect();
+        $redirectUri = config('services.google.redirect');
+
+        $driver = Socialite::driver('google')->stateless();
+        if ($redirectUri) {
+            $driver->redirectUrl($redirectUri);
+        }
+
+        return $driver->redirect();
     }
 
     public function callback(Request $request, GoogleAuthAction $action)
@@ -44,7 +48,14 @@ class GoogleAuthController extends Controller
                 return redirect($frontendUrl . '/callback/google?error=' . urlencode('Authentification Google annulée ou échouée.'));
             }
 
-            $googleUser = Socialite::driver('google')->stateless()->user();
+            $redirectUri = config('services.google.redirect');
+
+            $driver = Socialite::driver('google')->stateless();
+            if ($redirectUri) {
+                $driver->redirectUrl($redirectUri);
+            }
+
+            $googleUser = $driver->user();
             $user = $action->handleGoogleUser($googleUser);
 
             $tokens = $this->tokenService->generateTokenPair($user, $request->ip(), $request->userAgent());
