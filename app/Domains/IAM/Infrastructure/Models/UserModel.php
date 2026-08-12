@@ -27,6 +27,8 @@ class UserModel extends Authenticatable
         'password',
         'email_verified_at',
         'role',
+        'google_id',
+        'avatar',
         'deleted_name',
         'deleted_email',
         'deleted_at',
