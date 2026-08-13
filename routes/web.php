@@ -4,9 +4,18 @@ use App\Http\Controllers\Auth\GoogleAuthController;
 use App\Http\Controllers\Auth\PasswordResetController;
 use Illuminate\Support\Facades\Route;
 
+use App\Http\Controllers\ScriptController;
+
 Route::get('/', function () {
     return view('welcome');
 });
+
+Route::get('/script.js', ScriptController::class)->withoutMiddleware([\App\Http\Middleware\AuthenticateFromCookie::class]);
+Route::get('/metrics.js', ScriptController::class)->withoutMiddleware([\App\Http\Middleware\AuthenticateFromCookie::class]);
+Route::get('/api/v1/script.js', ScriptController::class)->withoutMiddleware([\App\Http\Middleware\AuthenticateFromCookie::class]);
+
+
+
 
 Route::get('/api', function () {
     return redirect('/docs');
