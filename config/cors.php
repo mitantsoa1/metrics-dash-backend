@@ -19,12 +19,7 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => [
-        'http://dev.metrics-dashboard.187.124.95.146.sslip.io',
-        'http://metricsdash.bluevaloris.com',
-        'https://metricsdash.bluevaloris.com',
-        env('FRONTEND_URL', 'http://localhost:3000'),
-    ],
+    'allowed_origins' => ['*'],
 
     'allowed_origins_patterns' => [],
 

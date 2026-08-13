@@ -21,8 +21,21 @@ class IngestSdkEventProcessor implements ProcessorInterface
         $request = $context['request'] ?? request();
         $reqData = $request?->json()?->all() ?? $request?->all() ?? [];
 
+        if ($request?->getContent()) {
+            $decoded = json_decode($request->getContent(), true);
+            if (is_array($decoded)) {
+                $reqData = array_merge($decoded, $reqData);
+            }
+        }
+
         $publicSdkKey = $request?->header('X-SDK-Key')
-            ?: ($data?->publicSdkKey ?? $reqData['publicSdkKey'] ?? '');
+            ?: ($reqData['publicSdkKey']
+                ?? $reqData['public_sdk_key']
+                ?? $reqData['websiteId']
+                ?? $reqData['website_id']
+                ?? $reqData['data-website-id']
+                ?? $reqData['data_website_id']
+                ?? ($data?->publicSdkKey ?? ''));
 
         $eventName = $data?->eventName ?? $reqData['eventName'] ?? $reqData['event'] ?? 'page_view';
         $visitorId = $data?->visitorId ?? $reqData['visitorId'] ?? null;

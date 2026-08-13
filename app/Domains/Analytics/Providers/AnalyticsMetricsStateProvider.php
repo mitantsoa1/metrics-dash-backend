@@ -263,17 +263,28 @@ class AnalyticsMetricsStateProvider implements ProviderInterface
             $currentDay->addDay();
         }
 
-        // 4. Répartition dynamique des appareils et navigateurs
+        // 4. Répartition dynamique des appareils, navigateurs, Top Pages et Top Clics
         $rawEvents = RawEventModel::where($applyInstanceFilter)
             ->whereBetween('occurred_at', [$startDate, $endDate])
-            ->limit(1000)
+            ->limit(2000)
             ->get();
 
         $deviceBreakdown = ['DESKTOP' => 0, 'MOBILE' => 0, 'TABLET' => 0, 'BOT' => 0];
         $browserBreakdown = ['Chrome' => 0, 'Safari' => 0, 'Firefox' => 0, 'Edge' => 0];
 
+        $pageMap = [];
+        $clickMap = [];
+        $totalActiveSeconds = 0;
+        $totalPageSeconds = 0;
+        $durationEventCount = 0;
+        $bounceSessionsCount = 0;
+
         foreach ($rawEvents as $event) {
             $contextData = $event->context ?? [];
+            $payloadData = $event->payload ?? [];
+            $eventName = $event->getEventName()->toString();
+
+            // Appareils & Navigateurs
             $device = $contextData['device_type'] ?? 'DESKTOP';
             $browser = $contextData['browser'] ?? 'Chrome';
 
@@ -288,6 +299,79 @@ class AnalyticsMetricsStateProvider implements ProviderInterface
             } else {
                 $browserBreakdown['Chrome']++;
             }
+
+            // Top Pages (page_view)
+            if ($eventName === 'page_view') {
+                $path = (string) ($payloadData['path'] ?? $contextData['path'] ?? '/');
+                if ($path !== '') {
+                    if (! isset($pageMap[$path])) {
+                        $pageMap[$path] = ['path' => $path, 'views' => 0, 'totalDuration' => 0];
+                    }
+                    $pageMap[$path]['views']++;
+                }
+            }
+
+            // Durées & Rebond (page_duration)
+            if ($eventName === 'page_duration') {
+                $pDuration = (int) ($payloadData['page_duration'] ?? 0);
+                $aDuration = (int) ($payloadData['active_duration'] ?? $pDuration);
+                $isBounce = (bool) ($payloadData['is_bounce'] ?? false);
+                $path = (string) ($payloadData['path'] ?? '/');
+
+                $totalPageSeconds += $pDuration;
+                $totalActiveSeconds += $aDuration;
+                $durationEventCount++;
+
+                if ($isBounce) {
+                    $bounceSessionsCount++;
+                }
+
+                if (isset($pageMap[$path])) {
+                    $pageMap[$path]['totalDuration'] += $aDuration;
+                }
+            }
+
+            // Top Clics (click_interaction)
+            if ($eventName === 'click_interaction') {
+                $selector = (string) ($payloadData['selector'] ?? 'button');
+                $label = (string) ($payloadData['label'] ?? 'Clic');
+                $elementType = (string) ($payloadData['element_type'] ?? 'button');
+                $key = $selector . '|' . $label;
+
+                if (! isset($clickMap[$key])) {
+                    $clickMap[$key] = [
+                        'selector' => $selector,
+                        'label' => $label,
+                        'elementType' => $elementType,
+                        'count' => 0,
+                    ];
+                }
+                $clickMap[$key]['count']++;
+            }
+        }
+
+        // Formater Top Pages (trier par vues décroissantes, limiter à 10)
+        usort($pageMap, function ($a, $b) {
+            return $b['views'] <=> $a['views'];
+        });
+        $topPages = array_slice(array_map(function ($p) {
+            return [
+                'path' => $p['path'],
+                'views' => $p['views'],
+                'avgDuration' => $p['views'] > 0 ? (int) round($p['totalDuration'] / $p['views']) : 0,
+            ];
+        }, $pageMap), 0, 10);
+
+        // Formater Top Clics (trier par count décroissant, limiter à 10)
+        usort($clickMap, function ($a, $b) {
+            return $b['count'] <=> $a['count'];
+        });
+        $topClicks = array_values(array_slice($clickMap, 0, 10));
+
+        $avgActiveDuration = $durationEventCount > 0 ? (int) round($totalActiveSeconds / $durationEventCount) : 45;
+        $avgSessionDuration = $durationEventCount > 0 ? (int) round($totalPageSeconds / $durationEventCount) : 120;
+        if ($durationEventCount > 0 && $sessions > 0) {
+            $bounceRate = round(($bounceSessionsCount / max(1, $durationEventCount)) * 100, 1);
         }
 
         $resource = new AnalyticsMetricsResource();
@@ -300,6 +384,8 @@ class AnalyticsMetricsStateProvider implements ProviderInterface
             'sessions' => $sessions,
             'conversions' => $conversions,
             'bounce_rate' => $bounceRate,
+            'avg_active_duration' => $avgActiveDuration,
+            'avg_session_duration' => $avgSessionDuration,
         ];
         $resource->financialKpis = [
             'total_revenue' => round($totalRevenue, 2),
@@ -314,7 +400,10 @@ class AnalyticsMetricsStateProvider implements ProviderInterface
         $resource->deviceBreakdown = $deviceBreakdown;
         $resource->browserBreakdown = $browserBreakdown;
         $resource->recentTransactions = $recentTransactions;
+        $resource->topPages = $topPages;
+        $resource->topClicks = $topClicks;
 
         return [$resource];
     }
 }
+

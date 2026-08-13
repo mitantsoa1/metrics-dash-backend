@@ -17,11 +17,17 @@ use App\Domains\Ingestion\Processors\IngestSdkEventProcessor;
         new Post(
             uriTemplate: '/api/v1/telemetry/sdk',
             processor: IngestSdkEventProcessor::class,
+            inputFormats: [
+                'json' => ['application/json', 'text/plain', 'text/plain;charset=UTF-8', 'application/x-www-form-urlencoded', 'multipart/form-data'],
+            ],
             description: 'Ingère un événement de navigation Web depuis le SDK client (avec clé pk_live_...).'
         ),
         new Post(
             uriTemplate: '/api/v1/collect/sdk',
             processor: IngestSdkEventProcessor::class,
+            inputFormats: [
+                'json' => ['application/json', 'text/plain', 'text/plain;charset=UTF-8', 'application/x-www-form-urlencoded', 'multipart/form-data'],
+            ],
             description: 'Alias d\'ingestion SDK client Web.'
         ),
         new Post(

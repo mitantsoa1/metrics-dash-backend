@@ -33,7 +33,7 @@ class EventIngestionService
         $apiKey = $this->apiKeyRepository->findByKeyHash($keyHash);
 
         if (! $apiKey || ! str_starts_with($dto->publicSdkKey, 'pk_live_')) {
-            throw InvalidApiKeyException::forType('PUBLIC_SDK');
+            throw InvalidApiKeyException::forType('PUBLIC_SDK', $dto->publicSdkKey);
         }
 
         $ip = $dto->ipAddress ?? '127.0.0.1';

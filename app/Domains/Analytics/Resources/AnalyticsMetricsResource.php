@@ -54,5 +54,12 @@ class AnalyticsMetricsResource
 
     #[ApiProperty(description: 'Dernières transactions enregistrées avec détails acheteurs et packs')]
     public array $recentTransactions = [];
+
+    #[ApiProperty(description: 'Pages les plus visitées avec nombre de vues et durée moyenne')]
+    public array $topPages = [];
+
+    #[ApiProperty(description: 'Éléments les plus cliqués avec sélecteur CSS, libellé et nombre de clics')]
+    public array $topClicks = [];
 }
+
 
