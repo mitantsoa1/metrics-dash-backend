@@ -13,6 +13,7 @@ Route::get('/', function () {
 Route::get('/script.js', ScriptController::class)->withoutMiddleware([\App\Http\Middleware\AuthenticateFromCookie::class]);
 Route::get('/metrics.js', ScriptController::class)->withoutMiddleware([\App\Http\Middleware\AuthenticateFromCookie::class]);
 Route::get('/api/v1/script.js', ScriptController::class)->withoutMiddleware([\App\Http\Middleware\AuthenticateFromCookie::class]);
+Route::get('/api/v1/reports/download', \App\Http\Controllers\ReportDownloadController::class)->withoutMiddleware([\App\Http\Middleware\AuthenticateFromCookie::class]);
 
 
 
