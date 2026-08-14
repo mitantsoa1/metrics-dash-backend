@@ -52,6 +52,7 @@ class AnalyticsMetricsStateProvider implements ProviderInterface
                 $query->whereIn('instance_id', $tenantInstanceIds);
             }
         };
+        $remoteData = null;
         if ($instance && ! empty($instance->domain)) {
             $domain = rtrim((string) $instance->domain, '/');
             if (! str_starts_with($domain, 'http')) {
@@ -72,21 +73,6 @@ class AnalyticsMetricsStateProvider implements ProviderInterface
 
                 if ($response->successful()) {
                     $remoteData = $response->json();
-
-                    $resource = new AnalyticsMetricsResource();
-                    $resource->instanceId = (string) $instanceId;
-                    $resource->startDate = (string) $startDateStr;
-                    $resource->endDate = (string) $endDateStr;
-                    $resource->kpis = $remoteData['kpis'] ?? [];
-                    $resource->financialKpis = $remoteData['financialKpis'] ?? [];
-                    $resource->packBreakdown = $remoteData['packBreakdown'] ?? [];
-                    $resource->timeSeries = $remoteData['timeSeries'] ?? [];
-                    $resource->revenueTimeSeries = $remoteData['revenueTimeSeries'] ?? [];
-                    $resource->deviceBreakdown = $remoteData['deviceBreakdown'] ?? [];
-                    $resource->browserBreakdown = $remoteData['browserBreakdown'] ?? [];
-                    $resource->recentTransactions = $remoteData['recentTransactions'] ?? [];
-
-                    return [$resource];
                 }
             } catch (\Throwable $e) {
                 // En cas d'instance injoignable, basculer sur le calcul local
@@ -282,7 +268,7 @@ class AnalyticsMetricsStateProvider implements ProviderInterface
         foreach ($rawEvents as $event) {
             $contextData = $event->context ?? [];
             $payloadData = $event->payload ?? [];
-            $eventName = $event->getEventName()->toString();
+            $eventName = (string) ($event->event_name ?? '');
 
             // Appareils & Navigateurs
             $device = $contextData['device_type'] ?? 'DESKTOP';
@@ -374,6 +360,24 @@ class AnalyticsMetricsStateProvider implements ProviderInterface
             $bounceRate = round(($bounceSessionsCount / max(1, $durationEventCount)) * 100, 1);
         }
 
+        $recentRawEvents = [];
+        foreach ($rawEvents->take(25) as $e) {
+            $pData = $e->payload ?? [];
+            $cData = $e->context ?? [];
+            $recentRawEvents[] = [
+                'id' => (string) $e->id,
+                'eventName' => (string) ($e->event_name ?? ''),
+                'eventType' => (string) ($e->event_type ?? 'NAVIGATION'),
+                'visitorId' => (string) ($e->visitor_id ?? 'vis_anonyme'),
+                'sessionId' => (string) ($e->session_id ?? ''),
+                'path' => (string) ($pData['path'] ?? $cData['path'] ?? '/'),
+                'label' => (string) ($pData['label'] ?? $pData['selector'] ?? $pData['title'] ?? ''),
+                'device' => (string) ($cData['device_type'] ?? 'DESKTOP'),
+                'browser' => (string) ($cData['browser'] ?? 'Chrome'),
+                'occurredAt' => $e->occurred_at ? Carbon::parse($e->occurred_at)->format('Y-m-d H:i:s') : '',
+            ];
+        }
+
         $resource = new AnalyticsMetricsResource();
         $resource->instanceId = (string) $instanceId;
         $resource->startDate = (string) $startDateStr;
@@ -387,21 +391,24 @@ class AnalyticsMetricsStateProvider implements ProviderInterface
             'avg_active_duration' => $avgActiveDuration,
             'avg_session_duration' => $avgSessionDuration,
         ];
-        $resource->financialKpis = [
-            'total_revenue' => round($totalRevenue, 2),
-            'mrr' => $mrr,
-            'average_order_value' => $averageOrderValue,
-            'total_transactions' => $totalTransactions,
-            'conversion_rate' => $financialConversionRate,
-        ];
-        $resource->packBreakdown = $packMap;
+        $resource->financialKpis = ($remoteData && ! empty($remoteData['financialKpis']))
+            ? $remoteData['financialKpis']
+            : [
+                'total_revenue' => round($totalRevenue, 2),
+                'mrr' => $mrr,
+                'average_order_value' => $averageOrderValue,
+                'total_transactions' => $totalTransactions,
+                'conversion_rate' => $financialConversionRate,
+            ];
+        $resource->packBreakdown = ($remoteData && ! empty($remoteData['packBreakdown'])) ? $remoteData['packBreakdown'] : $packMap;
         $resource->timeSeries = $timeSeries;
-        $resource->revenueTimeSeries = $revenueTimeSeries;
+        $resource->revenueTimeSeries = ($remoteData && ! empty($remoteData['revenueTimeSeries'])) ? $remoteData['revenueTimeSeries'] : $revenueTimeSeries;
         $resource->deviceBreakdown = $deviceBreakdown;
         $resource->browserBreakdown = $browserBreakdown;
-        $resource->recentTransactions = $recentTransactions;
+        $resource->recentTransactions = ($remoteData && ! empty($remoteData['recentTransactions'])) ? $remoteData['recentTransactions'] : $recentTransactions;
         $resource->topPages = $topPages;
         $resource->topClicks = $topClicks;
+        $resource->recentRawEvents = $recentRawEvents;
 
         return [$resource];
     }

@@ -24,6 +24,7 @@ return [
         'http://localhost:3001',
         'http://localhost:8000',
         'https://dev.creerailleurs.com',
+        'https://api-dev.creerailleurs.com',
         'https://metricsdash.bluevaloris.com',
         env('FRONTEND_URL')
     ],

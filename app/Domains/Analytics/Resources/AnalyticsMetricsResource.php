@@ -60,6 +60,9 @@ class AnalyticsMetricsResource
 
     #[ApiProperty(description: 'Éléments les plus cliqués avec sélecteur CSS, libellé et nombre de clics')]
     public array $topClicks = [];
+
+    #[ApiProperty(description: 'Journal en temps réel des derniers événements bruts enregistrés (raw_events)')]
+    public array $recentRawEvents = [];
 }
 
 
