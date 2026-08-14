@@ -31,12 +31,25 @@ use App\Domains\Ingestion\Processors\IngestSdkEventProcessor;
             description: 'Alias d\'ingestion SDK client Web.'
         ),
         new Post(
+            uriTemplate: '/api/v1/ingest/sdk',
+            processor: IngestSdkEventProcessor::class,
+            inputFormats: [
+                'json' => ['application/json', 'text/plain', 'text/plain;charset=UTF-8', 'application/x-www-form-urlencoded', 'multipart/form-data'],
+            ],
+            description: 'Alias d\'ingestion SDK client Web (metrics-dash-js).'
+        ),
+        new Post(
             uriTemplate: '/api/v1/telemetry/push',
             processor: IngestPushEventProcessor::class,
             description: 'Ingère un événement métier serveur-à-serveur depuis une API backend (avec clé sk_live_...).'
         ),
         new Post(
             uriTemplate: '/api/v1/collect/push',
+            processor: IngestPushEventProcessor::class,
+            description: 'Alias d\'ingestion API Push privée.'
+        ),
+        new Post(
+            uriTemplate: '/api/v1/ingest/push',
             processor: IngestPushEventProcessor::class,
             description: 'Alias d\'ingestion API Push privée.'
         ),

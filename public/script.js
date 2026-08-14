@@ -11,10 +11,53 @@
     return;
   }
 
+  function sanitizeHostUrl(rawHost) {
+    if (!rawHost) return '';
+    var host = rawHost.trim().replace(/\/$/, '');
+    // Correction des schémas malformés (ex: "http:localhost:8000", "http:/localhost:8000")
+    host = host.replace(/^https?:?\/*(?!\/)/i, function (match) {
+      return match.toLowerCase().indexOf('https') === 0 ? 'https://' : 'http://';
+    });
+    // Si aucun schéma n'est présent (ex: "localhost:8000" ou "api-dev.creerailleurs.com")
+    if (!/^https?:\/\//i.test(host)) {
+      if (host.indexOf('localhost') === 0 || host.indexOf('127.0.0.1') === 0) {
+        host = 'http://' + host;
+      } else {
+        host = 'https://' + host;
+      }
+    }
+    return host;
+  }
+
   var scriptSrc = currentScript.src || '';
-  var scriptOrigin = scriptSrc ? new URL(scriptSrc).origin : window.location.origin;
+  var scriptOrigin = '';
+
+  // Détection d'URL hôte imbriquée si le script est inclus sans schéma (ex: http://localhost:3001/fr/localhost:8000/script.js)
+  if (scriptSrc) {
+    var matchEmbedded = scriptSrc.match(/\/(localhost:\d+|127\.0\.0\.1:\d+|[a-z0-9.-]+\.[a-z]{2,}:\d+)/i);
+    if (matchEmbedded && matchEmbedded[1]) {
+      scriptOrigin = sanitizeHostUrl(matchEmbedded[1]);
+    } else {
+      try {
+        if (/^https?:\/\//i.test(scriptSrc)) {
+          scriptOrigin = new URL(scriptSrc).origin;
+        }
+      } catch (e) {}
+    }
+  }
+
+  if (!scriptOrigin) {
+    scriptOrigin = window.location.origin;
+  }
+
   var customHost = currentScript.getAttribute('data-host-url');
-  var hostUrl = customHost ? customHost.replace(/\/$/, '') : scriptOrigin;
+  var hostUrl = customHost ? sanitizeHostUrl(customHost) : scriptOrigin;
+
+  // Auto-upgrade HTTP vers HTTPS si la page hôte est en HTTPS pour éviter les redirections 301/308 qui provoquent NS_BINDING_ABORTED
+  if (window.location.protocol === 'https:' && hostUrl.indexOf('http://') === 0 && hostUrl.indexOf('http://localhost') !== 0 && hostUrl.indexOf('http://127.0.0.1') !== 0) {
+    hostUrl = hostUrl.replace('http://', 'https://');
+  }
+
   var ingestUrl = hostUrl + '/api/v1/telemetry/sdk';
 
   var autoTrack = currentScript.getAttribute('data-auto-track') !== 'false';
@@ -86,7 +129,7 @@
 
     if (navigator.sendBeacon) {
       try {
-        var blob = new Blob([payloadStr], { type: 'text/plain;charset=UTF-8' });
+        var blob = new Blob([payloadStr], { type: 'application/json' });
         if (navigator.sendBeacon(ingestUrl, blob)) return;
       } catch (e) {
         // Fallback fetch en cas d'échec Beacon
