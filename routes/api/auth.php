@@ -60,3 +60,30 @@ Route::prefix('api/v1/auth')->group(function () {
         Route::post('/2fa/disable', TwoFactorDisableController::class);
     });
 });
+
+/*
+|--------------------------------------------------------------------------
+| Analytics & Automated Reports API Routes
+|--------------------------------------------------------------------------
+*/
+
+use App\Http\Controllers\Analytics\ReportHistoryController;
+use App\Http\Controllers\Analytics\ScheduledReportController;
+
+Route::prefix('api/v1')->middleware(['auth:sanctum'])->group(function () {
+    // Historique des Rapports Générés & Téléchargement
+    Route::get('/reports', [ReportHistoryController::class, 'index']);
+    Route::get('/reports/{id}/download', [ReportHistoryController::class, 'download']);
+    Route::post('/reports', [ReportHistoryController::class, 'store']);
+    Route::delete('/reports/{id}', [ReportHistoryController::class, 'destroy']);
+
+    // Gestion & Configuration des Envois Automatiques (Schedules)
+    Route::get('/scheduled-reports', [ScheduledReportController::class, 'index']);
+    Route::post('/scheduled-reports', [ScheduledReportController::class, 'store']);
+    Route::get('/scheduled-reports/{id}', [ScheduledReportController::class, 'show']);
+    Route::put('/scheduled-reports/{id}', [ScheduledReportController::class, 'update']);
+    Route::patch('/scheduled-reports/{id}', [ScheduledReportController::class, 'update']);
+    Route::delete('/scheduled-reports/{id}', [ScheduledReportController::class, 'destroy']);
+    Route::post('/scheduled-reports/{id}/test', [ScheduledReportController::class, 'testSend']);
+});
+
