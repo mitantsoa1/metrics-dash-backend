@@ -61,6 +61,9 @@
   var ingestUrl = hostUrl + '/api/v1/telemetry/sdk';
 
   var autoTrack = currentScript.getAttribute('data-auto-track') !== 'false';
+  var autoForm = currentScript.getAttribute('data-auto-form') !== 'false';
+  var excludeFormsAttr = currentScript.getAttribute('data-exclude-forms') || '';
+  var excludedFormList = excludeFormsAttr ? excludeFormsAttr.split(',').map(function (s) { return s.trim().toLowerCase(); }).filter(Boolean) : [];
   var doNotTrack = currentScript.getAttribute('data-do-not-track') === 'true';
 
   if (doNotTrack && (navigator.doNotTrack === '1' || window.doNotTrack === '1')) {
@@ -337,7 +340,122 @@
     });
   }, { capture: true, passive: true });
 
-  // 8. Auto-lancement au chargement
+  // 8. Capture Automatique des Soumissions de Formulaires Sans PII (Support HTML Natif & JS)
+  var lastSubmittedForm = null;
+  var lastSubmitTime = 0;
+
+  function isFormExcluded(form) {
+    if (!form || form.tagName !== 'FORM') return true;
+
+    // 1. Attributs d'exclusion directe
+    if (form.hasAttribute('data-no-track') || form.getAttribute('data-metrics-ignore') === 'true' || form.getAttribute('data-sensitive') === 'true') {
+      return true;
+    }
+
+    // 2. Vérification des ancêtres
+    var parent = form.parentElement;
+    while (parent && parent !== document.body) {
+      if (parent.hasAttribute('data-no-track') || parent.getAttribute('data-metrics-ignore') === 'true') {
+        return true;
+      }
+      parent = parent.parentElement;
+    }
+
+    // 3. Liste d'exclusion configurable (data-exclude-forms="id1,name2")
+    var formId = (form.id || '').toLowerCase();
+    var formName = (form.getAttribute('name') || '').toLowerCase();
+    var formAction = (form.getAttribute('action') || '').toLowerCase();
+
+    for (var i = 0; i < excludedFormList.length; i++) {
+      var excluded = excludedFormList[i];
+      if (excluded && (formId === excluded || formName === excluded || formAction.indexOf(excluded) !== -1)) {
+        return true;
+      }
+    }
+
+    // 4. Détection automatique des formulaires sensibles (Paiement, Mots de passe, Données de Santé)
+    var hasPassword = !!form.querySelector('input[type="password"]');
+    var hasCreditCard = !!form.querySelector('input[type="credit-card"], input[autocomplete*="cc-"], input[autocomplete*="card"], input[name*="card"], input[name*="cvv"], input[name*="iban"]');
+    var hasHealthData = !!form.querySelector('input[name*="health"], input[name*="medical"], [data-category="health"], [data-category="medical"]');
+
+    if (hasPassword || hasCreditCard || hasHealthData) {
+      return true;
+    }
+
+    var formClasses = (form.className && typeof form.className === 'string') ? form.className.toLowerCase() : '';
+    if (formClasses.indexOf('no-track') !== -1 || formClasses.indexOf('metrics-ignore') !== -1) {
+      return true;
+    }
+
+    return false;
+  }
+
+  function trackFormSubmit(form, triggerStatus) {
+    if (!autoForm || isFormExcluded(form)) return;
+
+    // Déduplication (éviter double envoi si submit natif + hook JS sous 500ms)
+    var now = Date.now();
+    if (lastSubmittedForm === form && now - lastSubmitTime < 500) {
+      return;
+    }
+    lastSubmittedForm = form;
+    lastSubmitTime = now;
+
+    hasInteraction = true;
+    markUserActivity();
+
+    var formId = form.id || form.getAttribute('name') || (form.getAttribute('action') ? form.getAttribute('action').split('?')[0] : '') || 'unnamed_form';
+    var formName = form.getAttribute('name') || '';
+    var formAction = form.getAttribute('action') ? sanitizeUrl(form.getAttribute('action')) : '';
+    var formMethod = (form.getAttribute('method') || 'POST').toUpperCase();
+    var fieldCount = form.querySelectorAll('input:not([type="hidden"]), select, textarea').length || form.querySelectorAll('input, select, textarea').length;
+
+    // ZERO PII : Le contenu et les valeurs des champs (.value) ne sont JAMAIS lus ni envoyés
+    sendEvent('form_submit', {
+      form_id: formId,
+      form_name: formName,
+      form_action: formAction,
+      form_method: formMethod,
+      field_count: fieldCount,
+      status: triggerStatus || 'submitted',
+      path: window.location.pathname,
+      url: sanitizeUrl(window.location.href),
+      submitted_at: new Date().toISOString()
+    });
+  }
+
+  // Écouteur global pour les soumissions HTML natives
+  document.addEventListener('submit', function (event) {
+    var form = event.target;
+    if (form && form.tagName === 'FORM') {
+      trackFormSubmit(form, 'submitted');
+    }
+  }, { capture: true, passive: true });
+
+  // Prise en charge des soumissions déclenchées par JavaScript (form.submit() et form.requestSubmit())
+  if (typeof HTMLFormElement !== 'undefined' && HTMLFormElement.prototype) {
+    var originalSubmit = HTMLFormElement.prototype.submit;
+    if (originalSubmit) {
+      HTMLFormElement.prototype.submit = function () {
+        try {
+          trackFormSubmit(this, 'submitted_via_js');
+        } catch (e) {}
+        return originalSubmit.apply(this, arguments);
+      };
+    }
+
+    var originalRequestSubmit = HTMLFormElement.prototype.requestSubmit;
+    if (originalRequestSubmit) {
+      HTMLFormElement.prototype.requestSubmit = function () {
+        try {
+          trackFormSubmit(this, 'submitted_via_js');
+        } catch (e) {}
+        return originalRequestSubmit.apply(this, arguments);
+      };
+    }
+  }
+
+  // 9. Auto-lancement au chargement
   if (autoTrack) {
     if (document.readyState === 'complete' || document.readyState === 'interactive') {
       trackPageView();
@@ -354,6 +472,11 @@
     trackEvent: function (eventName, data) {
       hasInteraction = true;
       sendEvent(eventName, data);
+    },
+    trackForm: function (formElement, status) {
+      if (formElement) {
+        trackFormSubmit(formElement, status || 'manual_track');
+      }
     }
   };
 })();
