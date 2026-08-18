@@ -395,7 +395,7 @@
 
     // Déduplication (éviter double envoi si submit natif + hook JS sous 500ms)
     var now = Date.now();
-    if (lastSubmittedForm === form && now - lastSubmitTime < 500) {
+    if (!isManual && lastSubmittedForm === form && now - lastSubmitTime < 500) {
       return;
     }
     lastSubmittedForm = form;

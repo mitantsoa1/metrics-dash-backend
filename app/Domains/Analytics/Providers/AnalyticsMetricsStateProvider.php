@@ -260,6 +260,8 @@ class AnalyticsMetricsStateProvider implements ProviderInterface
 
         $pageMap = [];
         $clickMap = [];
+        $formMap = [];
+        $totalFormSubmissions = 0;
         $totalActiveSeconds = 0;
         $totalPageSeconds = 0;
         $durationEventCount = 0;
@@ -334,6 +336,29 @@ class AnalyticsMetricsStateProvider implements ProviderInterface
                 }
                 $clickMap[$key]['count']++;
             }
+
+            // Top Formulaires Soumis (form_submit)
+            if ($eventName === 'form_submit') {
+                $formId = (string) ($payloadData['form_id'] ?? $payloadData['form_name'] ?? 'unnamed_form');
+                $formName = (string) ($payloadData['form_name'] ?? '');
+                $path = (string) ($payloadData['path'] ?? $contextData['path'] ?? '/');
+                $fieldCount = (int) ($payloadData['field_count'] ?? 0);
+                $status = (string) ($payloadData['status'] ?? 'submitted');
+                $key = $formId . '|' . $path;
+
+                if (! isset($formMap[$key])) {
+                    $formMap[$key] = [
+                        'form_id' => $formId,
+                        'form_name' => $formName,
+                        'path' => $path,
+                        'field_count' => $fieldCount,
+                        'status' => $status,
+                        'count' => 0,
+                    ];
+                }
+                $formMap[$key]['count']++;
+                $totalFormSubmissions++;
+            }
         }
 
         // Formater Top Pages (trier par vues décroissantes, limiter à 10)
@@ -353,6 +378,12 @@ class AnalyticsMetricsStateProvider implements ProviderInterface
             return $b['count'] <=> $a['count'];
         });
         $topClicks = array_values(array_slice($clickMap, 0, 10));
+
+        // Formater Top Formulaires (trier par count décroissant, limiter à 10)
+        usort($formMap, function ($a, $b) {
+            return $b['count'] <=> $a['count'];
+        });
+        $topForms = array_values(array_slice($formMap, 0, 10));
 
         $avgActiveDuration = $durationEventCount > 0 ? (int) round($totalActiveSeconds / $durationEventCount) : 45;
         $avgSessionDuration = $durationEventCount > 0 ? (int) round($totalPageSeconds / $durationEventCount) : 120;
@@ -387,6 +418,7 @@ class AnalyticsMetricsStateProvider implements ProviderInterface
             'unique_visitors' => $uniqueVisitors,
             'sessions' => $sessions,
             'conversions' => $conversions,
+            'form_submissions' => $totalFormSubmissions,
             'bounce_rate' => $bounceRate,
             'avg_active_duration' => $avgActiveDuration,
             'avg_session_duration' => $avgSessionDuration,
@@ -408,6 +440,7 @@ class AnalyticsMetricsStateProvider implements ProviderInterface
         $resource->recentTransactions = ($remoteData && ! empty($remoteData['recentTransactions'])) ? $remoteData['recentTransactions'] : $recentTransactions;
         $resource->topPages = $topPages;
         $resource->topClicks = $topClicks;
+        $resource->topForms = $topForms;
         $resource->recentRawEvents = $recentRawEvents;
 
         return [$resource];
