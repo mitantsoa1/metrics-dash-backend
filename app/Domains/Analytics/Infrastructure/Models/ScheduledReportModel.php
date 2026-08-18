@@ -104,6 +104,6 @@ class ScheduledReportModel extends Model
                 break;
         }
 
-        return $target;
+        return $target->utc();
     }
 }
