@@ -373,12 +373,11 @@
       }
     }
 
-    // 4. Détection automatique des formulaires sensibles (Paiement, Mots de passe, Données de Santé)
-    var hasPassword = !!form.querySelector('input[type="password"]');
+    // 4. Détection automatique des formulaires hautement sensibles (Paiement bancaire, Données de Santé)
     var hasCreditCard = !!form.querySelector('input[type="credit-card"], input[autocomplete*="cc-"], input[autocomplete*="card"], input[name*="card"], input[name*="cvv"], input[name*="iban"]');
     var hasHealthData = !!form.querySelector('input[name*="health"], input[name*="medical"], [data-category="health"], [data-category="medical"]');
 
-    if (hasPassword || hasCreditCard || hasHealthData) {
+    if (hasCreditCard || hasHealthData) {
       return true;
     }
 
@@ -390,8 +389,9 @@
     return false;
   }
 
-  function trackFormSubmit(form, triggerStatus) {
-    if (!autoForm || isFormExcluded(form)) return;
+  function trackFormSubmit(form, triggerStatus, isManual) {
+    if (!autoForm && !isManual) return;
+    if (!isManual && isFormExcluded(form)) return;
 
     // Déduplication (éviter double envoi si submit natif + hook JS sous 500ms)
     var now = Date.now();
@@ -475,7 +475,7 @@
     },
     trackForm: function (formElement, status) {
       if (formElement) {
-        trackFormSubmit(formElement, status || 'manual_track');
+        trackFormSubmit(formElement, status || 'manual_track', true);
       }
     }
   };
