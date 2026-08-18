@@ -90,27 +90,46 @@
                 <!-- Main Container -->
                 <table border="0" cellpadding="0" cellspacing="0" width="600" class="container-table" style="background-color: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05); width: 600px;">
                     
-                    <!-- Header avec Logo & Titre de Marque -->
-                    <tr>
-                        <td align="center" style="background-color: #151651; padding: 28px 24px; border-bottom: 3px solid #10b981;">
-                            <table border="0" cellpadding="0" cellspacing="0">
-                                <tr>
-                                    <td align="center" valign="middle">
-                                        <a href="{{ $dashboardUrl ?? '#' }}" target="_blank" style="text-decoration: none;">
-                                            <img src="{{ config('app.url') }}/logo.png" alt="MetricsDash Enterprise" width="160" style="display: block; width: 160px; max-height: 48px; border: 0; font-family: Arial, sans-serif; font-size: 20px; font-weight: bold; color: #ffffff;" />
-                                        </a>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td align="center" style="padding-top: 8px;">
-                                        <span style="font-family: Arial, sans-serif; font-size: 11px; font-weight: bold; color: #34d399; text-transform: uppercase; letter-spacing: 2px;">
-                                            Plateforme Télémesure & Performance
-                                        </span>
-                                    </td>
-                                </tr>
-                            </table>
-                        </td>
-                    </tr>
+                  <!-- Header avec Logo & Titre de Marque -->
+<tr>
+    <td align="center" style="background-color: #151651; padding: 30px 20px; border-bottom: 3px solid #10b981;">
+        <table border="0" cellpadding="0" cellspacing="0" align="center" style="margin: 0 auto;">
+            <!-- Bloc Logo + Nom -->
+            <tr>
+                <td align="center">
+                    <a href="{{ $dashboardUrl ?? '#' }}" target="_blank" style="text-decoration: none; display: inline-block;">
+                        <table border="0" cellpadding="0" cellspacing="0" align="center">
+                            <tr>
+                                <!-- Logo -->
+                                <td align="center" valign="middle" style="padding-right: 4px; padding-top: 4px;">
+                                    <img src="{{ config('app.url') }}/logo.png" 
+                                         alt="MetricsDash Logo" 
+                                         width="100" 
+                                         height="100" 
+                                         style="display: block; width: 100px; height: 100px; border: 0; outline: none; text-decoration: none; vertical-align: middle; -ms-interpolation-mode: bicubic;" />
+                                </td>
+                                <!-- Nom de l'application -->
+                                <td align="left" valign="middle">
+                                    <span style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 24px; font-weight: 800; color: #ffffff; letter-spacing: -0.5px; text-decoration: none; display: inline-block; line-height: 1; vertical-align: middle;">
+                                        MetricsDash
+                                    </span>
+                                </td>
+                            </tr>
+                        </table>
+                    </a>
+                </td>
+            </tr>
+            <!-- Sous-titre -->
+            <tr>
+                <td align="center" style="padding-top: 14px;">
+                    <span style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 11px; font-weight: 700; color: #34d399; text-transform: uppercase; letter-spacing: 2px; display: block; line-height: 1;">
+                        Plateforme Télémesure & Performance
+                    </span>
+                </td>
+            </tr>
+        </table>
+    </td>
+</tr>
 
                     <!-- Titre & Période -->
                     <tr>

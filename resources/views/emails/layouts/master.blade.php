@@ -84,7 +84,18 @@
         <div class="container">
             <!-- Header avec Logo MetricsDash -->
             <div class="header">
-                <img src="{{ config('app.url') }}/logo.png" alt="MetricsDash Logo" />
+                <table border="0" cellpadding="0" cellspacing="0" align="center" style="margin: 0 auto;">
+                    <tr>
+                        <td align="center" valign="middle" style="padding-right: 12px;">
+                            <img src="{{ config('app.url') }}/logo.png" alt="MetricsDash Logo" width="60" height="60" style="display: block; width: 60px; height: 60px; border-radius: 8px; border: 0;" />
+                        </td>
+                        <td align="left" valign="middle">
+                            <span style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 20px; font-weight: 900; color: #ffffff; line-height: 1.1; letter-spacing: -0.5px;">
+                                MetricsDash 
+                            </span>
+                        </td>
+                    </tr>
+                </table>
             </div>
 
             <!-- Contenu Principal -->
