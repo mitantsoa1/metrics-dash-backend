@@ -24,7 +24,8 @@ class EventIngestionService
         private readonly ApiKeyRepositoryInterface $apiKeyRepository,
         private readonly RawEventRepositoryInterface $rawEventRepository,
         private readonly EventAnonymizationService $anonymizationService,
-        private readonly UserAgentParserService $uaParserService
+        private readonly UserAgentParserService $uaParserService,
+        private readonly PushEventValidator $pushValidator
     ) {}
 
     public function ingestSdkEvent(IngestSdkEventInputDTO $dto): IngestEventOutputDTO
@@ -92,6 +93,8 @@ class EventIngestionService
             throw InvalidApiKeyException::forType('PRIVATE_PUSH');
         }
 
+        $valid = $this->pushValidator->validate($dto->eventName, $dto->eventData, $dto->timestamp);
+
         $ip = $dto->ipAddress ?? '127.0.0.1';
         $anonymizedIp = $this->anonymizationService->anonymizeIp($ip);
 
@@ -103,11 +106,12 @@ class EventIngestionService
         $rawEvent = RawEvent::create(
             instanceId: $apiKey->getInstanceId(),
             eventType: EventType::BUSINESS,
-            eventName: EventName::fromString($dto->eventName),
+            eventName: EventName::fromString($valid['eventName']),
             visitorId: $dto->visitorId ? VisitorId::fromString($dto->visitorId) : null,
             sessionId: $dto->sessionId ? SessionId::fromString($dto->sessionId) : null,
-            payload: $dto->eventData,
-            context: $context
+            payload: $valid['eventData'],
+            context: $context,
+            occurredAt: $valid['occurredAt']
         );
 
         $this->rawEventRepository->save($rawEvent);

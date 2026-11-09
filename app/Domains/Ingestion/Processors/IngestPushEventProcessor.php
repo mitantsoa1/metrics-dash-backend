@@ -25,18 +25,19 @@ class IngestPushEventProcessor implements ProcessorInterface
             ?: ($request?->header('X-Push-Key')
             ?: ($data?->privatePushKey ?? $reqData['privatePushKey'] ?? ''));
 
-        $eventName = $data?->eventName ?? $reqData['eventName'] ?? $reqData['event'] ?? 'custom_event';
+        $eventName = $reqData['event_type'] ?? $data?->eventName ?? $reqData['eventName'] ?? $reqData['event'] ?? null;
         $eventData = $data?->eventData ?? $reqData['eventData'] ?? $reqData['payload'] ?? $reqData['data'] ?? [];
         $visitorId = $data?->visitorId ?? $reqData['visitorId'] ?? null;
         $sessionId = $data?->sessionId ?? $reqData['sessionId'] ?? null;
 
         $inputDto = new IngestPushEventInputDTO(
             privatePushKey: trim((string) $privatePushKey),
-            eventName: trim((string) $eventName),
-            eventData: is_array($eventData) ? $eventData : [],
+            eventName: is_string($eventName) ? $eventName : null,
+            eventData: $eventData,
             visitorId: $visitorId ? (string) $visitorId : null,
             sessionId: $sessionId ? (string) $sessionId : null,
-            ipAddress: $request?->ip()
+            ipAddress: $request?->ip(),
+            timestamp: $reqData['timestamp'] ?? $reqData['occurredAt'] ?? null
         );
 
         $outputDto = $this->ingestPushEventAction->execute($inputDto);
