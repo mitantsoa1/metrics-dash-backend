@@ -89,3 +89,26 @@ Route::prefix('api/v1')->middleware(['auth:sanctum'])->group(function () {
     Route::post('/scheduled-reports/{id}/test', [ScheduledReportController::class, 'testSend']);
 });
 
+/*
+|--------------------------------------------------------------------------
+| Support & Helpdesk Tickets API Routes
+|--------------------------------------------------------------------------
+*/
+
+use App\Http\Controllers\Api\Support\SupportTicketController;
+use App\Http\Controllers\Api\Admin\AdminSupportTicketController;
+
+// Public / Authenticated user submission
+Route::prefix('api/v1')->group(function () {
+    Route::post('/support/tickets', [SupportTicketController::class, 'store'])->middleware('throttle:10,1');
+});
+
+// Admin Ticket Management (RBAC: SUPERADMIN, OWNER, ADMIN)
+Route::prefix('api/v1/admin')->middleware(['auth:sanctum'])->group(function () {
+    Route::get('/support/tickets', [AdminSupportTicketController::class, 'index']);
+    Route::get('/support/tickets/{id}', [AdminSupportTicketController::class, 'show']);
+    Route::patch('/support/tickets/{id}', [AdminSupportTicketController::class, 'update']);
+    Route::delete('/support/tickets/{id}', [AdminSupportTicketController::class, 'destroy']);
+});
+
+
