@@ -67,6 +67,18 @@ class AnalyticsMetricsResource
 
     #[ApiProperty(description: 'Journal en temps réel des derniers événements bruts enregistrés (raw_events)')]
     public array $recentRawEvents = [];
+
+    #[ApiProperty(description: 'Les 6 KPIs principaux avec variation vs période précédente (PU-32/PU-33)')]
+    public array $kpiSummary = [];
+
+    #[ApiProperty(description: 'Top catégories par chiffre d\'affaires (PU-40)')]
+    public array $topCategories = [];
+
+    #[ApiProperty(description: 'Chiffre d\'affaires par région')]
+    public array $regionBreakdown = [];
+
+    #[ApiProperty(description: 'Filtres de segmentation appliqués (category, region, device)')]
+    public array $activeFilters = [];
 }
 
 
