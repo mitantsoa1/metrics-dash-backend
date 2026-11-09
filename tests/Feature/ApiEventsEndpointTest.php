@@ -140,4 +140,12 @@ class ApiEventsEndpointTest extends TestCase
         $this->assertSame('MOBILE', $duration->context['device_type']);
         $this->assertSame('sess_1', $duration->session_id);
     }
+
+    public function test_sdk_verify_endpoint_validates_the_public_key(): void
+    {
+        $this->getJson('/api/v1/sdk/verify', ['X-SDK-Key' => $this->pk])->assertOk()->assertJsonPath('valid', true)->assertJsonPath('instance_id', $this->instanceId);
+        $this->getJson('/api/v1/sdk/verify', ['X-SDK-Key' => 'pk_live_nope'])->assertStatus(401);
+        $this->getJson('/api/v1/sdk/verify', ['X-SDK-Key' => $this->sk])->assertStatus(401); // une clé privée n'est pas une clé SDK
+        $this->getJson('/api/v1/sdk/verify')->assertStatus(401);
+    }
 }

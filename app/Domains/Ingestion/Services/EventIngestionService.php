@@ -123,6 +123,12 @@ class EventIngestionService
         );
     }
 
+    /** Clé publique SDK (pk_live_) : vérification à l'initialisation du SDK (PU-26). */
+    public function resolvePublicKey(string $plainKey, ?string $ip = null): ApiKey
+    {
+        return $this->resolveKey($plainKey, 'pk_live_', 'PUBLIC_SDK', $ip);
+    }
+
     /** Clé privée Push (sk_live_) : 401 si absente/invalide, tentative refusée journalisée. */
     public function resolvePushKey(string $plainKey, ?string $ip = null): ApiKey
     {

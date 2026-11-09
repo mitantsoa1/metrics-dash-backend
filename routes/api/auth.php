@@ -90,6 +90,14 @@ Route::prefix('api/v1')->middleware(['auth:sanctum'])->group(function () {
     Route::post('/scheduled-reports/{id}/test', [ScheduledReportController::class, 'testSend']);
 });
 
+// Vérification de la clé publique à l'initialisation du SDK (PU-26)
+Route::get('/api/v1/sdk/verify', function (\Illuminate\Http\Request $request, \App\Domains\Ingestion\Services\EventIngestionService $ingestion) {
+    $key = (string) ($request->header('X-SDK-Key') ?: $request->query('key', ''));
+    $apiKey = $ingestion->resolvePublicKey($key, $request->ip());
+
+    return response()->json(['valid' => true, 'instance_id' => $apiKey->getInstanceId()->toString()]);
+})->middleware('throttle:60,1');
+
 // Ingestion API Push (PU-54) : 202 Accepted, authentifiée par clé privée sk_live_
 Route::middleware('throttle:push-ingest')->group(function () {
     Route::post('/api/events', \App\Http\Controllers\Api\Ingestion\PushEventController::class);
