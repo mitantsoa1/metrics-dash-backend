@@ -37,6 +37,26 @@ class IngestSdkEventProcessor implements ProcessorInterface
                 ?? $reqData['data_website_id']
                 ?? ($data?->publicSdkKey ?? ''));
 
+        // Lot envoyé par le SDK navigateur : { public_sdk_key, visitor_id, session_id, events: [...] }
+        if (isset($reqData['events']) && is_array($reqData['events'])) {
+            $accepted = app(\App\Domains\Ingestion\Services\EventIngestionService::class)->ingestSdkBatch(
+                publicSdkKey: trim((string) $publicSdkKey),
+                events: $reqData['events'],
+                visitorId: isset($reqData['visitor_id']) ? (string) $reqData['visitor_id'] : ($reqData['visitorId'] ?? null),
+                sessionId: isset($reqData['session_id']) ? (string) $reqData['session_id'] : ($reqData['sessionId'] ?? null),
+                ip: $request?->ip(),
+                userAgent: $request?->header('User-Agent')
+            );
+
+            $resource = new IngestionResource();
+            $resource->eventName = 'batch';
+            $resource->status = 'ACCEPTED';
+            $resource->eventData = ['accepted' => $accepted];
+            $resource->occurredAt = date('Y-m-d H:i:s');
+
+            return $resource;
+        }
+
         $eventName = $data?->eventName ?? $reqData['eventName'] ?? $reqData['event'] ?? 'page_view';
         $visitorId = $data?->visitorId ?? $reqData['visitorId'] ?? null;
         $sessionId = $data?->sessionId ?? $reqData['sessionId'] ?? null;

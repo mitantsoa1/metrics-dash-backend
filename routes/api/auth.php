@@ -72,7 +72,10 @@ use App\Http\Controllers\Analytics\ScheduledReportController;
 
 Route::prefix('api/v1')->middleware(['auth:sanctum'])->group(function () {
     // Historique des Rapports Générés & Téléchargement
+    Route::get('/metrics/filter-options', \App\Http\Controllers\Analytics\FilterOptionsController::class);
     Route::get('/reports', [ReportHistoryController::class, 'index']);
+    // Export CSV direct (authentifié, hors session web)
+    Route::get('/reports/download', \App\Http\Controllers\ReportDownloadController::class);
     Route::get('/reports/{id}/download', [ReportHistoryController::class, 'download']);
     Route::post('/reports', [ReportHistoryController::class, 'store']);
     Route::delete('/reports/{id}', [ReportHistoryController::class, 'destroy']);
@@ -86,4 +89,41 @@ Route::prefix('api/v1')->middleware(['auth:sanctum'])->group(function () {
     Route::delete('/scheduled-reports/{id}', [ScheduledReportController::class, 'destroy']);
     Route::post('/scheduled-reports/{id}/test', [ScheduledReportController::class, 'testSend']);
 });
+
+// Vérification de la clé publique à l'initialisation du SDK (PU-26)
+Route::get('/api/v1/sdk/verify', function (\Illuminate\Http\Request $request, \App\Domains\Ingestion\Services\EventIngestionService $ingestion) {
+    $key = (string) ($request->header('X-SDK-Key') ?: $request->query('key', ''));
+    $apiKey = $ingestion->resolvePublicKey($key, $request->ip());
+
+    return response()->json(['valid' => true, 'instance_id' => $apiKey->getInstanceId()->toString()]);
+})->middleware('throttle:60,1');
+
+// Ingestion API Push (PU-54) : 202 Accepted, authentifiée par clé privée sk_live_
+Route::middleware('throttle:push-ingest')->group(function () {
+    Route::post('/api/events', \App\Http\Controllers\Api\Ingestion\PushEventController::class);
+    Route::post('/api/v1/events', \App\Http\Controllers\Api\Ingestion\PushEventController::class);
+});
+
+/*
+|--------------------------------------------------------------------------
+| Support & Helpdesk Tickets API Routes
+|--------------------------------------------------------------------------
+*/
+
+use App\Http\Controllers\Api\Support\SupportTicketController;
+use App\Http\Controllers\Api\Admin\AdminSupportTicketController;
+
+// Public / Authenticated user submission
+Route::prefix('api/v1')->group(function () {
+    Route::post('/support/tickets', [SupportTicketController::class, 'store'])->middleware('throttle:10,1');
+});
+
+// Admin Ticket Management (RBAC: SUPERADMIN, OWNER, ADMIN)
+Route::prefix('api/v1/admin')->middleware(['auth:sanctum'])->group(function () {
+    Route::get('/support/tickets', [AdminSupportTicketController::class, 'index']);
+    Route::get('/support/tickets/{id}', [AdminSupportTicketController::class, 'show']);
+    Route::patch('/support/tickets/{id}', [AdminSupportTicketController::class, 'update']);
+    Route::delete('/support/tickets/{id}', [AdminSupportTicketController::class, 'destroy']);
+});
+
 

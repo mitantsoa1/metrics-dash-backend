@@ -13,6 +13,8 @@ use App\Domains\Instance\Infrastructure\Models\InstanceModel;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
 
+use App\Domains\Analytics\Services\EventFilterService;
+use App\Domains\Analytics\Services\KpiSummaryService;
 use App\Domains\IAM\Enums\UserRole;
 
 class AnalyticsMetricsStateProvider implements ProviderInterface
@@ -26,6 +28,8 @@ class AnalyticsMetricsStateProvider implements ProviderInterface
         $endDateStr = $request->query('endDate', date('Y-m-d'));
 
         $isSuperAdminOrAdmin = $user && in_array($user->role, [UserRole::SUPERADMIN->value, UserRole::ADMIN->value], true);
+
+        $instance = null;
 
         // Si une instance spécifique est demandée, vérifier l'existence et la sécurité tenant
         if ($instanceId && $instanceId !== 'all') {
@@ -52,8 +56,17 @@ class AnalyticsMetricsStateProvider implements ProviderInterface
                 $query->whereIn('instance_id', $tenantInstanceIds);
             }
         };
+        // Segmentation (PU-37/38/39) : les filtres s'appliquent à tous les calculs sur raw_events
+        $filterService = app(EventFilterService::class);
+        $filters = $filterService->fromRequest($request);
+        $filtersActive = $filterService->isActive($filters);
+        $rawScope = function ($query) use ($applyInstanceFilter, $filterService, $filters) {
+            $applyInstanceFilter($query);
+            $filterService->apply($query, $filters);
+        };
+
         $remoteData = null;
-        if ($instance && ! empty($instance->domain)) {
+        if ($instance && ! empty($instance->domain) && ! $filtersActive) {
             $domain = rtrim((string) $instance->domain, '/');
             if (! str_starts_with($domain, 'http')) {
                 $domain = 'http://' . $domain;
@@ -85,9 +98,12 @@ class AnalyticsMetricsStateProvider implements ProviderInterface
 
 
         // 1. Récupérer les métriques d'audience consolidées depuis daily_metrics
-        $metrics = DailyMetricModel::where($applyInstanceFilter)
-            ->whereBetween('date', [$startDateStr, $endDateStr])
-            ->get();
+        // daily_metrics n'est pas segmentable : avec un filtre actif, on lit raw_events
+        $metrics = $filtersActive
+            ? collect()
+            : DailyMetricModel::where($applyInstanceFilter)
+                ->whereBetween('date', [$startDateStr, $endDateStr])
+                ->get();
 
         $pageViews = (int) $metrics->where('metric_name', 'page_views')->sum('metric_value');
         $uniqueVisitors = (int) $metrics->where('metric_name', 'unique_visitors')->sum('metric_value');
@@ -96,43 +112,48 @@ class AnalyticsMetricsStateProvider implements ProviderInterface
 
         // Fallback live depuis raw_events si daily_metrics n'a pas encore été agrégé pour l'instance
         if ($pageViews === 0 && $uniqueVisitors === 0) {
-            $pageViews = RawEventModel::where($applyInstanceFilter)
+            $pageViews = RawEventModel::where($rawScope)
                 ->whereBetween('occurred_at', [$startDate, $endDate])
                 ->where('event_name', 'page_view')
                 ->count();
 
-            $uniqueVisitors = RawEventModel::where($applyInstanceFilter)
+            $uniqueVisitors = RawEventModel::where($rawScope)
                 ->whereBetween('occurred_at', [$startDate, $endDate])
                 ->whereNotNull('visitor_id')
                 ->distinct('visitor_id')
                 ->count('visitor_id');
 
-            $sessions = RawEventModel::where($applyInstanceFilter)
+            $sessions = RawEventModel::where($rawScope)
                 ->whereBetween('occurred_at', [$startDate, $endDate])
                 ->whereNotNull('session_id')
                 ->distinct('session_id')
                 ->count('session_id');
 
-            $conversions = RawEventModel::where($applyInstanceFilter)
+            $conversions = RawEventModel::where($rawScope)
                 ->whereBetween('occurred_at', [$startDate, $endDate])
                 ->where('event_type', 'BUSINESS')
                 ->count();
         }
 
-        $bounceRate = $sessions > 0 ? max(5, round(100 - (($conversions / max(1, $sessions)) * 100), 1)) : 0;
+        $bounceRate = 0;
 
         // 2. Calcul DYNAMIQUE du Chiffre d'Affaires et des Packs à partir de la table raw_events
-        $businessEvents = RawEventModel::where($applyInstanceFilter)
+        $businessEvents = RawEventModel::where($rawScope)
             ->whereBetween('occurred_at', [$startDate, $endDate])
             ->where(function ($q) {
                 $q->where('event_type', 'BUSINESS')
                     ->orWhereIn('event_name', ['order_completed', 'payment_success', 'subscription_created', 'checkout_success']);
             })
+            ->whereNotIn('event_name', KpiSummaryService::LEAD_EVENTS)
             ->orderBy('occurred_at', 'asc')
             ->get();
 
         $totalRevenue = 0.0;
-        $totalTransactions = count($businessEvents);
+        $mrr = 0.0;
+        $seenOrders = [];
+        $categoryMap = [];
+        $regionMap = [];
+        $totalTransactions = 0;
         $packMap = [];
         $dailyRevenueMap = [];
         $recentTransactions = [];
@@ -141,7 +162,32 @@ class AnalyticsMetricsStateProvider implements ProviderInterface
             $payload = $event->payload ?? [];
             $data = $payload['eventData'] ?? $payload;
 
+            if (! KpiSummaryService::isOrder((string) $event->event_name, $event->event_type, $data)) {
+                continue;
+            }
+
+            // Une commande rejouée (même order_id) n'est comptée qu'une fois
+            $orderKey = $data['order_id'] ?? $data['orderId'] ?? null;
+            if ($orderKey !== null) {
+                if (isset($seenOrders[$orderKey])) {
+                    continue;
+                }
+                $seenOrders[$orderKey] = true;
+            }
+            $totalTransactions++;
+
             $amount = (float) ($data['amount'] ?? $data['price'] ?? 0.0);
+            if ($event->event_name === 'subscription_created') {
+                $mrr += $amount;
+            }
+            $category = trim((string) ($data['category'] ?? '')) ?: 'Non catégorisé';
+            $region = trim((string) ($data['region'] ?? '')) ?: 'Non renseignée';
+            $categoryMap[$category] ??= ['revenue' => 0.0, 'count' => 0];
+            $categoryMap[$category]['revenue'] += $amount;
+            $categoryMap[$category]['count']++;
+            $regionMap[$region] ??= ['revenue' => 0.0, 'count' => 0];
+            $regionMap[$region]['revenue'] += $amount;
+            $regionMap[$region]['count']++;
             $packName = trim((string) ($data['pack'] ?? $data['plan'] ?? $data['pack_name'] ?? $data['name'] ?? 'Formule Standard'));
             $dateKey = Carbon::parse($event->occurred_at)->format('Y-m-d');
 
@@ -193,7 +239,7 @@ class AnalyticsMetricsStateProvider implements ProviderInterface
             $packMap[$k]['revenue'] = round($packMap[$k]['revenue'], 2);
         }
 
-        $mrr = round($totalRevenue * 0.85, 2);
+        $mrr = round($mrr, 2);
         $averageOrderValue = $totalTransactions > 0 ? round($totalRevenue / $totalTransactions, 2) : 0;
         $financialConversionRate = $uniqueVisitors > 0 ? round(($totalTransactions / max(1, $uniqueVisitors)) * 100, 2) : 0;
 
@@ -220,7 +266,7 @@ class AnalyticsMetricsStateProvider implements ProviderInterface
                     'conversions' => (int) ($items->where('metric_name', 'conversions')->first()?->metric_value ?? 0),
                 ];
             } else {
-                $dayEvents = RawEventModel::where($applyInstanceFilter)
+                $dayEvents = RawEventModel::where($rawScope)
                     ->whereDate('occurred_at', $dateStr)
                     ->get();
 
@@ -250,7 +296,7 @@ class AnalyticsMetricsStateProvider implements ProviderInterface
         }
 
         // 4. Répartition dynamique des appareils, navigateurs, Top Pages et Top Clics
-        $rawEvents = RawEventModel::where($applyInstanceFilter)
+        $rawEvents = RawEventModel::where($rawScope)
             ->whereBetween('occurred_at', [$startDate, $endDate])
             ->limit(2000)
             ->get();
@@ -385,8 +431,8 @@ class AnalyticsMetricsStateProvider implements ProviderInterface
         });
         $topForms = array_values(array_slice($formMap, 0, 10));
 
-        $avgActiveDuration = $durationEventCount > 0 ? (int) round($totalActiveSeconds / $durationEventCount) : 45;
-        $avgSessionDuration = $durationEventCount > 0 ? (int) round($totalPageSeconds / $durationEventCount) : 120;
+        $avgActiveDuration = $durationEventCount > 0 ? (int) round($totalActiveSeconds / $durationEventCount) : 0;
+        $avgSessionDuration = $durationEventCount > 0 ? (int) round($totalPageSeconds / $durationEventCount) : 0;
         if ($durationEventCount > 0 && $sessions > 0) {
             $bounceRate = round(($bounceSessionsCount / max(1, $durationEventCount)) * 100, 1);
         }
@@ -408,6 +454,21 @@ class AnalyticsMetricsStateProvider implements ProviderInterface
                 'occurredAt' => $e->occurred_at ? Carbon::parse($e->occurred_at)->format('Y-m-d H:i:s') : '',
             ];
         }
+
+        $rankBreakdown = function (array $map) use ($totalRevenue): array {
+            uasort($map, fn ($a, $b) => $b['revenue'] <=> $a['revenue']);
+            $rows = [];
+            foreach (array_slice($map, 0, 10, true) as $label => $row) {
+                $rows[] = [
+                    'label' => (string) $label,
+                    'revenue' => round($row['revenue'], 2),
+                    'count' => $row['count'],
+                    'percentage' => $totalRevenue > 0 ? round($row['revenue'] / $totalRevenue * 100, 1) : 0,
+                ];
+            }
+
+            return $rows;
+        };
 
         $resource = new AnalyticsMetricsResource();
         $resource->instanceId = (string) $instanceId;
@@ -442,6 +503,10 @@ class AnalyticsMetricsStateProvider implements ProviderInterface
         $resource->topClicks = $topClicks;
         $resource->topForms = $topForms;
         $resource->recentRawEvents = $recentRawEvents;
+        $resource->topCategories = $rankBreakdown($categoryMap);
+        $resource->regionBreakdown = $rankBreakdown($regionMap);
+        $resource->activeFilters = $filters;
+        $resource->kpiSummary = app(KpiSummaryService::class)->build($rawScope, $startDate, $endDate, ['category' => [], 'region' => [], 'device' => []]);
 
         return [$resource];
     }

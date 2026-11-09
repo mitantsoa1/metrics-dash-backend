@@ -41,6 +41,13 @@ return Application::configure(basePath: dirname(__DIR__))
             return Limit::perHour(3)->by($request->ip());
         });
 
+        // Ingestion API Push : 1000 événements/minute par clé (PU-54/55)
+        RateLimiter::for('push-ingest', function (Request $request) {
+            $key = $request->bearerToken() ?: (string) $request->header('X-Push-Secret-Key', '');
+
+            return Limit::perMinute(1000)->by($key !== '' ? hash('sha256', $key) : 'ip:'.$request->ip());
+        });
+
         // Rate Limiter for Forgot Password
         RateLimiter::for('forgot-password', function (Request $request) {
             return Limit::perHour(3)->by($request->ip());

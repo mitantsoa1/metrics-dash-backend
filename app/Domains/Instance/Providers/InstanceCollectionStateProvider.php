@@ -28,6 +28,14 @@ class InstanceCollectionStateProvider implements ProviderInterface
 
         $isSuperAdminOrAdmin = $user && in_array($user->role, [UserRole::SUPERADMIN->value, UserRole::ADMIN->value], true);
 
+        abort_unless($user, 401);
+        if (! $isSuperAdminOrAdmin && $tenantIdStr && $tenantIdStr !== 'all' && $tenantIdStr !== $user->tenant_id) {
+            abort(403, 'Accès à ce tenant non autorisé.');
+        }
+        if ($tenantIdStr === 'all' && ! $isSuperAdminOrAdmin) {
+            $tenantIdStr = $user->tenant_id;
+        }
+
         if ($tenantIdStr === 'all' || ($isSuperAdminOrAdmin && ! $tenantIdStr)) {
             $dtos = $this->provisioningService->getAllInstances();
         } else {
@@ -47,7 +55,7 @@ class InstanceCollectionStateProvider implements ProviderInterface
             $resource->environment = $dto->environment;
             $resource->status = $dto->status;
             $resource->publicSdkKey = $dto->publicSdkPrefix;
-            $resource->privatePushKey = $dto->privatePushPrefix;
+            $resource->privatePushKey = InstanceResource::maskSecret($dto->privatePushPrefix);
             $resource->createdAt = $dto->createdAt;
 
             return $resource;

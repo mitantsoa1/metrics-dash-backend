@@ -12,9 +12,12 @@ use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use App\Support\AuthorizesTenantAccess;
 
 class ScheduledReportController extends Controller
 {
+    use AuthorizesTenantAccess;
+
     public function __construct(
         private readonly ScheduledReportRunnerService $runnerService
     ) {}
@@ -26,7 +29,7 @@ class ScheduledReportController extends Controller
     {
         $instanceId = $request->query('instanceId');
 
-        $query = ScheduledReportModel::with(['instance:id,name,domain', 'logs' => function ($q) {
+        $query = $this->scopeToTenant(ScheduledReportModel::query())->with(['instance:id,name,domain', 'logs' => function ($q) {
             $q->latest('executed_at')->limit(5);
         }])->orderBy('created_at', 'desc');
 
@@ -51,13 +54,16 @@ class ScheduledReportController extends Controller
             'day_of_week' => 'nullable|integer|between:1,7',
             'day_of_month' => 'nullable|integer|between:1,31',
             'time' => 'required|string|regex:/^[0-2][0-9]:[0-5][0-9]$/',
-            'timezone' => 'nullable|string|max:64',
+            'timezone' => 'nullable|timezone',
             'formats' => 'required|string|in:PDF,EXCEL,BOTH,pdf,excel,both',
             'recipients' => 'required|array|min:1',
             'recipients.*' => 'required|email',
             'included_kpis' => 'nullable|array',
             'is_active' => 'nullable|boolean',
         ]);
+
+        $this->requireManager();
+        $this->assertInstanceAccessible($validated['instance_id'] ?? null);
 
         $user = $request->user();
         $id = (string) Str::uuid();
@@ -73,10 +79,12 @@ class ScheduledReportController extends Controller
         $schedule->time = $validated['time'];
         $schedule->timezone = $validated['timezone'] ?? 'Europe/Paris';
         $schedule->formats = strtoupper($validated['formats']);
-        $schedule->recipients = array_values(array_unique($validated['recipients']));
+        $schedule->recipients = $this->normalizeRecipients($validated['recipients']);
         $schedule->included_kpis = $validated['included_kpis'] ?? ['audience', 'financials', 'top_pages'];
         $schedule->is_active = $validated['is_active'] ?? true;
         $schedule->created_by = $user ? $user->email : 'Admin';
+        $this->rejectDuplicate($schedule);
+
         $schedule->next_run_at = $schedule->calculateNextRunAt(Carbon::now());
         $schedule->save();
 
@@ -88,7 +96,7 @@ class ScheduledReportController extends Controller
      */
     public function show(string $id): JsonResponse
     {
-        $schedule = ScheduledReportModel::with(['instance:id,name,domain', 'logs'])->find($id);
+        $schedule = $this->scopeToTenant(ScheduledReportModel::query())->with(['instance:id,name,domain', 'logs'])->find($id);
         if (! $schedule) {
             return response()->json(['message' => 'Planification introuvable'], 404);
         }
@@ -101,7 +109,8 @@ class ScheduledReportController extends Controller
      */
     public function update(Request $request, string $id): JsonResponse
     {
-        $schedule = ScheduledReportModel::find($id);
+        $this->requireManager();
+        $schedule = $this->scopeToTenant(ScheduledReportModel::query())->find($id);
         if (! $schedule) {
             return response()->json(['message' => 'Planification introuvable'], 404);
         }
@@ -113,7 +122,7 @@ class ScheduledReportController extends Controller
             'day_of_week' => 'nullable|integer|between:1,7',
             'day_of_month' => 'nullable|integer|between:1,31',
             'time' => 'sometimes|required|string|regex:/^[0-2][0-9]:[0-5][0-9]$/',
-            'timezone' => 'nullable|string|max:64',
+            'timezone' => 'nullable|timezone',
             'formats' => 'sometimes|required|string|in:PDF,EXCEL,BOTH,pdf,excel,both',
             'recipients' => 'sometimes|required|array|min:1',
             'recipients.*' => 'required|email',
@@ -123,15 +132,20 @@ class ScheduledReportController extends Controller
 
         if (isset($validated['frequency'])) $schedule->frequency = strtoupper($validated['frequency']);
         if (isset($validated['name'])) $schedule->name = $validated['name'];
+        if (array_key_exists('instance_id', $validated)) {
+            $this->assertInstanceAccessible($validated['instance_id']);
+        }
         if (array_key_exists('instance_id', $validated)) $schedule->instance_id = $validated['instance_id'];
         if (isset($validated['day_of_week'])) $schedule->day_of_week = $validated['day_of_week'];
         if (isset($validated['day_of_month'])) $schedule->day_of_month = $validated['day_of_month'];
         if (isset($validated['time'])) $schedule->time = $validated['time'];
         if (isset($validated['timezone'])) $schedule->timezone = $validated['timezone'];
         if (isset($validated['formats'])) $schedule->formats = strtoupper($validated['formats']);
-        if (isset($validated['recipients'])) $schedule->recipients = array_values(array_unique($validated['recipients']));
+        if (isset($validated['recipients'])) $schedule->recipients = $this->normalizeRecipients($validated['recipients']);
         if (isset($validated['included_kpis'])) $schedule->included_kpis = $validated['included_kpis'];
         if (isset($validated['is_active'])) $schedule->is_active = $validated['is_active'];
+
+        $this->rejectDuplicate($schedule);
 
         $schedule->next_run_at = $schedule->calculateNextRunAt(Carbon::now());
         $schedule->save();
@@ -144,7 +158,8 @@ class ScheduledReportController extends Controller
      */
     public function destroy(string $id): JsonResponse
     {
-        $schedule = ScheduledReportModel::find($id);
+        $this->requireManager();
+        $schedule = $this->scopeToTenant(ScheduledReportModel::query())->find($id);
         if (! $schedule) {
             return response()->json(['message' => 'Planification introuvable'], 404);
         }
@@ -159,7 +174,8 @@ class ScheduledReportController extends Controller
      */
     public function testSend(Request $request, string $id): JsonResponse
     {
-        $schedule = ScheduledReportModel::find($id);
+        $this->requireManager();
+        $schedule = $this->scopeToTenant(ScheduledReportModel::query())->find($id);
         if (! $schedule) {
             return response()->json(['message' => 'Planification introuvable'], 404);
         }
@@ -174,6 +190,43 @@ class ScheduledReportController extends Controller
                 'success' => false,
                 'message' => "Échec de l'envoi de test: " . $e->getMessage(),
             ], 500);
+        }
+    }
+
+    /** @param array<int, string> $recipients */
+    private function normalizeRecipients(array $recipients): array
+    {
+        return array_values(array_unique(array_map(fn ($email) => strtolower(trim($email)), $recipients)));
+    }
+
+    /**
+     * Une planification identique (même instance, fréquence, jour, heure, fuseau, mêmes destinataires)
+     * provoquerait des doubles envois : refusée (PU-43).
+     */
+    private function rejectDuplicate(ScheduledReportModel $schedule): void
+    {
+        $recipients = $schedule->recipients ?? [];
+        sort($recipients);
+
+        $candidates = ScheduledReportModel::query()
+            ->where('tenant_id', $schedule->tenant_id)
+            ->where('instance_id', $schedule->instance_id)
+            ->where('frequency', $schedule->frequency)
+            ->where('time', $schedule->time)
+            ->where('timezone', $schedule->timezone)
+            ->where('id', '!=', $schedule->id)
+            ->get();
+
+        foreach ($candidates as $other) {
+            $otherRecipients = $other->recipients ?? [];
+            sort($otherRecipients);
+            $sameDay = $schedule->frequency === 'DAILY'
+                || ($schedule->frequency === 'WEEKLY' && (int) $other->day_of_week === (int) $schedule->day_of_week)
+                || ($schedule->frequency === 'MONTHLY' && (int) $other->day_of_month === (int) $schedule->day_of_month);
+
+            if ($sameDay && $otherRecipients === $recipients) {
+                abort(422, "Une planification identique existe déjà (« {$other->name} »).");
+            }
         }
     }
 }

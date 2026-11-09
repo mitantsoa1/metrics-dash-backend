@@ -76,6 +76,12 @@ use App\Domains\Instance\Providers\InstanceStateProvider;
 
 class InstanceResource
 {
+    /** La clé privée n'est jamais renvoyée en clair après sa création/rotation. */
+    public static function maskSecret(?string $key): string
+    {
+        return ($key === null || strlen($key) < 12) ? 'sk_live_••••' : substr($key, 0, 8).'••••••••'.substr($key, -4);
+    }
+
     #[ApiProperty(description: 'Identifiant UUID unique de l\'instance')]
     public ?string $id = null;
 

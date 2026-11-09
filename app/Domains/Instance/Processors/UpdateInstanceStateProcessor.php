@@ -8,6 +8,7 @@ use ApiPlatform\Metadata\Operation;
 use ApiPlatform\State\ProcessorInterface;
 use App\Domains\Instance\Infrastructure\Models\InstanceModel;
 use App\Domains\Instance\Resources\InstanceResource;
+use App\Domains\Instance\Policies\InstancePolicy;
 
 class UpdateInstanceStateProcessor implements ProcessorInterface
 {
@@ -17,6 +18,7 @@ class UpdateInstanceStateProcessor implements ProcessorInterface
         $req = request()?->json()?->all() ?? request()?->all() ?? [];
 
         $model = InstanceModel::findOrFail($id);
+        abort_unless(app(InstancePolicy::class)->update(auth()->user(), $model), 403, 'Action non autorisée sur cette instance.');
 
         if (!empty($data?->name) || !empty($req['name'])) {
             $model->name = trim((string) ($data?->name ?? $req['name']));
@@ -43,9 +45,7 @@ class UpdateInstanceStateProcessor implements ProcessorInterface
         $resource->domain = $model->domain;
         $resource->environment = $model->environment;
         $resource->status = $model->status;
-        $resource->publicSdkKey = 'pk_live_' . substr($model->id, 0, 8);
-        $resource->privatePushKey = 'sk_live_' . substr(md5($model->id), 0, 12);
-        $resource->createdAt = $model->created_at?->toIso8601String() ?? date('c');
+                $resource->createdAt = $model->created_at?->toIso8601String() ?? date('c');
 
         return $resource;
     }

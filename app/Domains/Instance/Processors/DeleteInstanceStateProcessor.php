@@ -15,6 +15,8 @@ class DeleteInstanceStateProcessor implements ProcessorInterface
     {
         $id = $uriVariables['id'] ?? $data?->id ?? null;
         if ($id) {
+            $instance = InstanceModel::findOrFail($id);
+            abort_unless(app(\App\Domains\Instance\Policies\InstancePolicy::class)->delete(auth()->user(), $instance), 403, 'Action non autorisée sur cette instance.');
             ApiKeyModel::where('instance_id', $id)->delete();
             InstanceModel::where('id', $id)->delete();
         }
