@@ -64,7 +64,7 @@ class KpiSummaryService
         $this->filterService->apply($query, $filters);
 
         $revenue = 0.0;
-        $orders = 0;
+        $buyers = [];
         $seenOrders = [];
         $visitors = [];
         $pageViews = 0;
@@ -99,14 +99,17 @@ class KpiSummaryService
                     }
                     $seenOrders[$orderId] = true;
                 }
-                $orders++;
+                // Conversion = visiteurs acheteurs / visiteurs : une commande sans visitor_id (API Push) n'est pas attribuable
+                if ($event->visitor_id) {
+                    $buyers[$event->visitor_id] = true;
+                }
                 $revenue += (float) ($payload['amount'] ?? $payload['price'] ?? 0);
             }
         }
 
         return [
             'total_revenue' => round($revenue, 2),
-            'conversion_rate' => count($visitors) > 0 ? round($orders / count($visitors) * 100, 2) : null,
+            'conversion_rate' => count($visitors) > 0 ? round(count($buyers) / count($visitors) * 100, 2) : null,
             'page_views' => $pageViews,
             'bounce_rate' => $durations > 0 ? round($bounces / $durations * 100, 1) : null,
             'engagement' => $durations > 0 ? (int) round($activeSeconds / $durations) : null,

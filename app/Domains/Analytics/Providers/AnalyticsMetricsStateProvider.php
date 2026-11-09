@@ -29,6 +29,8 @@ class AnalyticsMetricsStateProvider implements ProviderInterface
 
         $isSuperAdminOrAdmin = $user && in_array($user->role, [UserRole::SUPERADMIN->value, UserRole::ADMIN->value], true);
 
+        $instance = null;
+
         // Si une instance spécifique est demandée, vérifier l'existence et la sécurité tenant
         if ($instanceId && $instanceId !== 'all') {
             $instance = InstanceModel::find($instanceId);

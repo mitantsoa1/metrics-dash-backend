@@ -79,6 +79,8 @@ class KpiSummaryApiTest extends TestCase
         $this->assertEquals(300.0, $k['total_revenue']['current']);
         $this->assertEquals(200.0, $k['total_revenue']['change_pct']);
         $this->assertSame('improving', $k['total_revenue']['trend']);
+        // visiteurs v1, v2 (vues) : les 2 ont acheté -> 100 % ; jamais > 100 %
+        $this->assertEquals(100.0, $k['conversion_rate']['current']);
         $this->assertEquals(4.0, (float) $k['page_views']['current']);
         $this->assertEquals(100.0, $k['page_views']['change_pct']);
         $this->assertEquals(1.0, (float) $k['leads']['current']);
@@ -88,6 +90,16 @@ class KpiSummaryApiTest extends TestCase
         $this->assertEquals(50.0, (float) $k['bounce_rate']['current']);
         $this->assertEquals(-50.0, $k['bounce_rate']['change_pct']);
         $this->assertSame('improving', $k['bounce_rate']['trend']);
+    }
+
+    public function test_all_instances_view_works_for_a_tenant_user(): void
+    {
+        $this->event('order_completed', '2026-11-05 10:00:00', ['order_id' => 'A', 'amount' => 70], [], 'BUSINESS');
+
+        $r = $this->getJson('/api/v1/metrics?instanceId=all&startDate=2026-11-04&endDate=2026-11-10')->assertOk();
+
+        $this->assertEquals(70.0, $r->json('0.kpiSummary.kpis.total_revenue.current'));
+        $this->getJson('/api/v1/metrics?startDate=2026-11-04&endDate=2026-11-10')->assertOk();
     }
 
     public function test_no_data_gives_null_not_invented_values(): void
@@ -101,6 +113,16 @@ class KpiSummaryApiTest extends TestCase
         $this->assertSame('unavailable', $k['bounce_rate']['trend']);
         $this->assertEquals(0, $m['kpis']['avg_active_duration']);
         $this->assertEquals(0, (int) $m['kpis']['bounce_rate']);
+    }
+
+    public function test_conversion_never_exceeds_100_percent_with_unattributed_orders(): void
+    {
+        $this->event('page_view', '2026-11-05 10:00:00', [], [], 'NAVIGATION', 'v1');
+        foreach (['A', 'B', 'C'] as $id) {
+            $this->event('order_completed', '2026-11-05 11:00:00', ['order_id' => $id, 'amount' => 10], [], 'BUSINESS'); // sans visitor_id
+        }
+
+        $this->assertEquals(0.0, $this->metrics()['kpiSummary']['kpis']['conversion_rate']['current']);
     }
 
     public function test_replayed_order_is_counted_once(): void
