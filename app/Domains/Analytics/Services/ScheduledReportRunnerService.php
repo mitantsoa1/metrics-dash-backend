@@ -6,7 +6,9 @@ namespace App\Domains\Analytics\Services;
 
 use App\Domains\Analytics\Infrastructure\Models\ScheduledReportLogModel;
 use App\Domains\Analytics\Infrastructure\Models\ScheduledReportModel;
+use App\Domains\IAM\Infrastructure\Models\UserModel;
 use App\Mail\AutomatedKpiReportMail;
+use App\Mail\ScheduledReportFailedMail;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -81,6 +83,7 @@ class ScheduledReportRunnerService
                 ]);
 
                 $summary['failed']++;
+                $this->notifyAdminsOfFailure($report, $e);
             } finally {
                 // Mettre à jour la date de prochaine exécution même en cas d'erreur pour éviter la boucle infinie
                 $report->last_run_at = Carbon::now();
@@ -129,7 +132,7 @@ class ScheduledReportRunnerService
     /**
      * Génère et expédie le rapport par email.
      */
-    private function executeReport(ScheduledReportModel $report, ?array $customRecipients = null, bool $isTest = false): void
+    protected function executeReport(ScheduledReportModel $report, ?array $customRecipients = null, bool $isTest = false): void
     {
         $recipients = $customRecipients ?? ($report->recipients ?? []);
         if (empty($recipients)) {
@@ -237,5 +240,36 @@ class ScheduledReportRunnerService
 
         // Envoi de l'email
         Mail::to($recipients)->send(new AutomatedKpiReportMail($reportData, $attachments));
+    }
+
+    /**
+     * Signale un échec d'envoi aux administrateurs du tenant et à l'auteur de la planification (PU-43).
+     * Ne doit jamais faire échouer le traitement des autres rapports.
+     */
+    private function notifyAdminsOfFailure(ScheduledReportModel $report, \Throwable $e): void
+    {
+        try {
+            $emails = UserModel::query()
+                ->where('tenant_id', $report->tenant_id)
+                ->whereIn('role', ['OWNER', 'ADMIN'])
+                ->pluck('email')
+                ->push((string) $report->created_by)
+                ->filter(fn ($email) => filter_var($email, FILTER_VALIDATE_EMAIL))
+                ->unique()
+                ->values()
+                ->all();
+
+            if ($emails === []) {
+                return;
+            }
+
+            Mail::to($emails)->send(new ScheduledReportFailedMail(
+                $report->name,
+                $e->getMessage(),
+                $report->calculateNextRunAt(Carbon::now())->toDateTimeString()
+            ));
+        } catch (\Throwable $mailError) {
+            Log::error("Impossible de notifier l'échec du rapport {$report->id}: {$mailError->getMessage()}");
+        }
     }
 }
