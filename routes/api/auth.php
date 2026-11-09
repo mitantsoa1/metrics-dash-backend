@@ -73,6 +73,8 @@ use App\Http\Controllers\Analytics\ScheduledReportController;
 Route::prefix('api/v1')->middleware(['auth:sanctum'])->group(function () {
     // Historique des Rapports Générés & Téléchargement
     Route::get('/reports', [ReportHistoryController::class, 'index']);
+    // Export CSV direct (authentifié, hors session web)
+    Route::get('/reports/download', \App\Http\Controllers\ReportDownloadController::class);
     Route::get('/reports/{id}/download', [ReportHistoryController::class, 'download']);
     Route::post('/reports', [ReportHistoryController::class, 'store']);
     Route::delete('/reports/{id}', [ReportHistoryController::class, 'destroy']);

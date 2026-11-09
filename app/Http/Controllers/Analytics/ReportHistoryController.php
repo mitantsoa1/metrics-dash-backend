@@ -13,9 +13,12 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Str;
+use App\Support\AuthorizesTenantAccess;
 
 class ReportHistoryController extends Controller
 {
+    use AuthorizesTenantAccess;
+
     public function __construct(
         private readonly ReportGeneratorService $generatorService
     ) {}
@@ -28,7 +31,7 @@ class ReportHistoryController extends Controller
         $instanceId = $request->query('instanceId');
         $format = $request->query('format');
 
-        $query = GeneratedReportModel::with('instance:id,name,domain')
+        $query = $this->scopeToTenant(GeneratedReportModel::query())->with('instance:id,name,domain')
             ->orderBy('created_at', 'desc');
 
         if ($instanceId && $instanceId !== 'all') {
@@ -49,7 +52,7 @@ class ReportHistoryController extends Controller
      */
     public function download(string $id): Response|JsonResponse
     {
-        $report = GeneratedReportModel::find($id);
+        $report = $this->scopeToTenant(GeneratedReportModel::query())->find($id);
         if (! $report) {
             return response()->json(['message' => 'Rapport introuvable'], 404);
         }
@@ -88,6 +91,8 @@ class ReportHistoryController extends Controller
             'records_count' => 'nullable|integer',
             'kpi_summary' => 'nullable|array',
         ]);
+
+        $this->assertInstanceAccessible($validated['instance_id'] ?? null);
 
         $user = $request->user();
         $format = strtoupper($validated['format']);
@@ -130,7 +135,8 @@ class ReportHistoryController extends Controller
      */
     public function destroy(string $id): JsonResponse
     {
-        $report = GeneratedReportModel::find($id);
+        $this->requireManager();
+        $report = $this->scopeToTenant(GeneratedReportModel::query())->find($id);
         if (! $report) {
             return response()->json(['message' => 'Rapport introuvable'], 404);
         }

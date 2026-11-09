@@ -6,14 +6,18 @@ namespace App\Http\Controllers;
 
 use App\Domains\Analytics\Infrastructure\Models\DailyMetricModel;
 use App\Domains\Ingestion\Infrastructure\Models\RawEventModel;
+use App\Support\AuthorizesTenantAccess;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ReportDownloadController extends Controller
 {
+    use AuthorizesTenantAccess;
+
     public function __invoke(Request $request): StreamedResponse
     {
         $instanceId = $request->query('instanceId');
+        $this->assertInstanceAccessible($instanceId ? (string) $instanceId : null);
         $format = strtolower((string) $request->query('format', 'csv'));
         $startDate = (string) $request->query('startDate', date('Y-m-d', strtotime('-30 days')));
         $endDate = (string) $request->query('endDate', date('Y-m-d'));

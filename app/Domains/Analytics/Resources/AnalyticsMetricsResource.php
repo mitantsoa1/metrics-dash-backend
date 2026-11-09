@@ -15,6 +15,7 @@ use App\Domains\Analytics\Providers\AnalyticsMetricsStateProvider;
     operations: [
         new GetCollection(
             uriTemplate: '/api/v1/metrics',
+            middleware: ['auth:sanctum'],
             provider: AnalyticsMetricsStateProvider::class,
             description: 'Récupère les KPIs financiers (Chiffre d\'Affaires, MRR, Panier Moyen, Paiements par Packs) et les séries temporelles.'
         )

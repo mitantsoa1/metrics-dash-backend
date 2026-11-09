@@ -12,9 +12,12 @@ use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use App\Support\AuthorizesTenantAccess;
 
 class ScheduledReportController extends Controller
 {
+    use AuthorizesTenantAccess;
+
     public function __construct(
         private readonly ScheduledReportRunnerService $runnerService
     ) {}
@@ -26,7 +29,7 @@ class ScheduledReportController extends Controller
     {
         $instanceId = $request->query('instanceId');
 
-        $query = ScheduledReportModel::with(['instance:id,name,domain', 'logs' => function ($q) {
+        $query = $this->scopeToTenant(ScheduledReportModel::query())->with(['instance:id,name,domain', 'logs' => function ($q) {
             $q->latest('executed_at')->limit(5);
         }])->orderBy('created_at', 'desc');
 
@@ -59,6 +62,9 @@ class ScheduledReportController extends Controller
             'is_active' => 'nullable|boolean',
         ]);
 
+        $this->requireManager();
+        $this->assertInstanceAccessible($validated['instance_id'] ?? null);
+
         $user = $request->user();
         $id = (string) Str::uuid();
 
@@ -88,7 +94,7 @@ class ScheduledReportController extends Controller
      */
     public function show(string $id): JsonResponse
     {
-        $schedule = ScheduledReportModel::with(['instance:id,name,domain', 'logs'])->find($id);
+        $schedule = $this->scopeToTenant(ScheduledReportModel::query())->with(['instance:id,name,domain', 'logs'])->find($id);
         if (! $schedule) {
             return response()->json(['message' => 'Planification introuvable'], 404);
         }
@@ -101,7 +107,8 @@ class ScheduledReportController extends Controller
      */
     public function update(Request $request, string $id): JsonResponse
     {
-        $schedule = ScheduledReportModel::find($id);
+        $this->requireManager();
+        $schedule = $this->scopeToTenant(ScheduledReportModel::query())->find($id);
         if (! $schedule) {
             return response()->json(['message' => 'Planification introuvable'], 404);
         }
@@ -123,6 +130,9 @@ class ScheduledReportController extends Controller
 
         if (isset($validated['frequency'])) $schedule->frequency = strtoupper($validated['frequency']);
         if (isset($validated['name'])) $schedule->name = $validated['name'];
+        if (array_key_exists('instance_id', $validated)) {
+            $this->assertInstanceAccessible($validated['instance_id']);
+        }
         if (array_key_exists('instance_id', $validated)) $schedule->instance_id = $validated['instance_id'];
         if (isset($validated['day_of_week'])) $schedule->day_of_week = $validated['day_of_week'];
         if (isset($validated['day_of_month'])) $schedule->day_of_month = $validated['day_of_month'];
@@ -144,7 +154,8 @@ class ScheduledReportController extends Controller
      */
     public function destroy(string $id): JsonResponse
     {
-        $schedule = ScheduledReportModel::find($id);
+        $this->requireManager();
+        $schedule = $this->scopeToTenant(ScheduledReportModel::query())->find($id);
         if (! $schedule) {
             return response()->json(['message' => 'Planification introuvable'], 404);
         }
@@ -159,7 +170,8 @@ class ScheduledReportController extends Controller
      */
     public function testSend(Request $request, string $id): JsonResponse
     {
-        $schedule = ScheduledReportModel::find($id);
+        $this->requireManager();
+        $schedule = $this->scopeToTenant(ScheduledReportModel::query())->find($id);
         if (! $schedule) {
             return response()->json(['message' => 'Planification introuvable'], 404);
         }
