@@ -125,6 +125,18 @@ class KpiSummaryApiTest extends TestCase
         $this->assertEquals(0.0, $this->metrics()['kpiSummary']['kpis']['conversion_rate']['current']);
     }
 
+    public function test_business_events_without_amount_are_not_orders(): void
+    {
+        $this->event('cart_abandoned', '2026-11-05 10:00:00', ['cart_id' => 'C1'], [], 'BUSINESS');
+        $this->event('order_completed', '2026-11-05 11:00:00', ['order_id' => 'A', 'amount' => 20], [], 'BUSINESS');
+        $this->event('invoice_paid', '2026-11-05 12:00:00', ['amount' => 30], [], 'BUSINESS'); // événement métier avec montant
+
+        $m = $this->metrics();
+
+        $this->assertEquals(50.0, $m['kpiSummary']['kpis']['total_revenue']['current']);
+        $this->assertSame(2, $m['financialKpis']['total_transactions']);
+    }
+
     public function test_replayed_order_is_counted_once(): void
     {
         foreach ([1, 2, 3] as $i) {

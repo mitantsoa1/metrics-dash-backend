@@ -82,7 +82,7 @@ class WindowAggregationService
                 $pageViews++;
             } elseif (in_array($name, KpiSummaryService::LEAD_EVENTS, true)) {
                 $leads++;
-            } elseif ($event->event_type === 'BUSINESS' || in_array($name, KpiSummaryService::ORDER_EVENTS, true)) {
+            } elseif (KpiSummaryService::isOrder($name, $event->event_type, is_array($payload['eventData'] ?? null) ? $payload['eventData'] : $payload)) {
                 $orderId = $payload['order_id'] ?? $payload['orderId'] ?? null;
                 if ($orderId !== null && isset($seenOrders[$orderId])) {
                     continue;

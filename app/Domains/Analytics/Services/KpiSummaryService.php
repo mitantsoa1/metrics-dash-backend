@@ -20,6 +20,22 @@ class KpiSummaryService
     public function __construct(private readonly EventFilterService $filterService) {}
 
     /**
+     * Une commande = un événement de commande connu, ou un événement métier portant un montant.
+     * Un panier abandonné ou tout autre événement métier sans montant n'est pas une commande.
+     *
+     * @param  array<string, mixed>  $payload
+     */
+    public static function isOrder(string $name, ?string $type, array $payload): bool
+    {
+        if (in_array($name, self::LEAD_EVENTS, true)) {
+            return false;
+        }
+
+        return in_array($name, self::ORDER_EVENTS, true)
+            || ($type === 'BUSINESS' && (isset($payload['amount']) || isset($payload['price'])));
+    }
+
+    /**
      * @param  array{category: string[], region: string[], device: string[]}  $filters
      * @return array<string, mixed>
      */
@@ -90,7 +106,7 @@ class KpiSummaryService
                 $activeSeconds += (int) ($payload['active_duration'] ?? $payload['page_duration'] ?? 0);
             } elseif (in_array($name, self::LEAD_EVENTS, true)) {
                 $leads++;
-            } elseif ($event->event_type === 'BUSINESS' || in_array($name, self::ORDER_EVENTS, true)) {
+            } elseif (self::isOrder($name, $event->event_type, $payload)) {
                 // Une commande rejouée (même order_id) n'est comptée qu'une fois.
                 $orderId = $payload['order_id'] ?? $payload['orderId'] ?? null;
                 if ($orderId !== null) {

@@ -162,6 +162,10 @@ class AnalyticsMetricsStateProvider implements ProviderInterface
             $payload = $event->payload ?? [];
             $data = $payload['eventData'] ?? $payload;
 
+            if (! KpiSummaryService::isOrder((string) $event->event_name, $event->event_type, $data)) {
+                continue;
+            }
+
             // Une commande rejouée (même order_id) n'est comptée qu'une fois
             $orderKey = $data['order_id'] ?? $data['orderId'] ?? null;
             if ($orderKey !== null) {
