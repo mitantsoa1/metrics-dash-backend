@@ -90,6 +90,12 @@ Route::prefix('api/v1')->middleware(['auth:sanctum'])->group(function () {
     Route::post('/scheduled-reports/{id}/test', [ScheduledReportController::class, 'testSend']);
 });
 
+// Ingestion API Push (PU-54) : 202 Accepted, authentifiée par clé privée sk_live_
+Route::middleware('throttle:push-ingest')->group(function () {
+    Route::post('/api/events', \App\Http\Controllers\Api\Ingestion\PushEventController::class);
+    Route::post('/api/v1/events', \App\Http\Controllers\Api\Ingestion\PushEventController::class);
+});
+
 /*
 |--------------------------------------------------------------------------
 | Support & Helpdesk Tickets API Routes

@@ -21,7 +21,8 @@ class IngestPushEventProcessor implements ProcessorInterface
         $request = $context['request'] ?? request();
         $reqData = $request?->json()?->all() ?? $request?->all() ?? [];
 
-        $privatePushKey = $request?->header('X-Push-Secret-Key')
+        $privatePushKey = $request?->bearerToken()
+            ?: $request?->header('X-Push-Secret-Key')
             ?: ($request?->header('X-Push-Key')
             ?: ($data?->privatePushKey ?? $reqData['privatePushKey'] ?? ''));
 
