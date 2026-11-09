@@ -39,7 +39,7 @@ return [
 
     'allowed_headers' => ['*'],
 
-    'exposed_headers' => [],
+    'exposed_headers' => ['X-Correlation-Id'],
 
     'max_age' => 0,
 
