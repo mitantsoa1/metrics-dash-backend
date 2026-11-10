@@ -39,7 +39,11 @@ class EventFilterService
     public function apply(Builder $query, array $filters): Builder
     {
         if ($filters['category'] !== []) {
-            $query->whereIn('payload->category', $filters['category']);
+            // Même repli que le classement : catégorie explicite, sinon l'offre vendue (pack)
+            $query->where(function (Builder $q) use ($filters) {
+                $q->whereIn('payload->category', $filters['category'])
+                    ->orWhereIn('payload->pack', $filters['category']);
+            });
         }
         if ($filters['region'] !== []) {
             $query->whereIn('payload->region', $filters['region']);
@@ -68,7 +72,7 @@ class EventFilterService
             ->cursor();
 
         foreach ($events as $event) {
-            $this->tally($categories, $event->payload['category'] ?? null);
+            $this->tally($categories, $event->payload['category'] ?? $event->payload['pack'] ?? null);
             $this->tally($regions, $event->payload['region'] ?? null);
             $this->tally($devices, isset($event->context['device_type']) ? strtoupper((string) $event->context['device_type']) : ($event->payload['device'] ?? null));
         }

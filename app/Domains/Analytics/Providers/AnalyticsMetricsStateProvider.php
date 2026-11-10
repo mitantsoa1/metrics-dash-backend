@@ -180,7 +180,8 @@ class AnalyticsMetricsStateProvider implements ProviderInterface
             if ($event->event_name === 'subscription_created') {
                 $mrr += $amount;
             }
-            $category = trim((string) ($data['category'] ?? '')) ?: 'Non catégorisé';
+            // Sans catégorie explicite, l'offre vendue (pack) fait office de catégorie (cas du package Laravel)
+            $category = trim((string) ($data['category'] ?? $data['pack'] ?? '')) ?: 'Non catégorisé';
             $region = trim((string) ($data['region'] ?? '')) ?: 'Non renseignée';
             $categoryMap[$category] ??= ['revenue' => 0.0, 'count' => 0];
             $categoryMap[$category]['revenue'] += $amount;
@@ -241,7 +242,6 @@ class AnalyticsMetricsStateProvider implements ProviderInterface
 
         $mrr = round($mrr, 2);
         $averageOrderValue = $totalTransactions > 0 ? round($totalRevenue / $totalTransactions, 2) : 0;
-        $financialConversionRate = $uniqueVisitors > 0 ? round(($totalTransactions / max(1, $uniqueVisitors)) * 100, 2) : 0;
 
 
 
@@ -491,7 +491,6 @@ class AnalyticsMetricsStateProvider implements ProviderInterface
                 'mrr' => $mrr,
                 'average_order_value' => $averageOrderValue,
                 'total_transactions' => $totalTransactions,
-                'conversion_rate' => $financialConversionRate,
             ];
         $resource->packBreakdown = ($remoteData && ! empty($remoteData['packBreakdown'])) ? $remoteData['packBreakdown'] : $packMap;
         $resource->timeSeries = $timeSeries;

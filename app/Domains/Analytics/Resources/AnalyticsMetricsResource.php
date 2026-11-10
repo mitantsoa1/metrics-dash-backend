@@ -35,7 +35,7 @@ class AnalyticsMetricsResource
     #[ApiProperty(description: 'KPIs d\'audience de base (page_views, unique_visitors, sessions, conversions, bounce_rate)')]
     public array $kpis = [];
 
-    #[ApiProperty(description: 'KPIs financiers et chiffre d\'affaires (total_revenue, mrr, average_order_value, total_transactions, conversion_rate)')]
+    #[ApiProperty(description: 'KPIs financiers et chiffre d\'affaires (total_revenue, mrr, average_order_value, total_transactions)')]
     public array $financialKpis = [];
 
     #[ApiProperty(description: 'Répartition du chiffre d\'affaires et transactions par Packs (Starter, Pro, Enterprise, Custom)')]
