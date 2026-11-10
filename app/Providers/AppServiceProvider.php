@@ -12,6 +12,12 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        // Documentation Swagger : ajoute les routes écrites à la main (ingestion, rapports, support…)
+        $this->app->extend(
+            \ApiPlatform\OpenApi\Factory\OpenApiFactory::class,
+            fn ($factory) => new \App\OpenApi\CustomRoutesOpenApiFactory($factory)
+        );
+
         // Redirection propre de /api et /api/docs vers la documentation Swagger /docs
         if (! app()->runningInConsole()) {
             $path = request()->path();
