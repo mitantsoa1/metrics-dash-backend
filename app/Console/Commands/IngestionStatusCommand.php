@@ -41,8 +41,8 @@ class IngestionStatusCommand extends Command
         if (config('queue.default') !== 'database') {
             $this->warn('Détail de la file disponible seulement avec QUEUE_CONNECTION=database.');
         } elseif (Schema::hasTable('jobs')) {
-            // Le nom de classe est stocké échappé (anti-slash doublés) dans le JSON du message.
-            $needle = '%'.addslashes(PersistRawEventsJob::class).'%';
+            // Nom court de la classe, sans anti-slash : avec PostgreSQL, « \ » est le caractère d'échappement de LIKE.
+            $needle = '%'.class_basename(PersistRawEventsJob::class).'%';
             $pending = DB::table('jobs')->where('payload', 'like', $needle);
             $count = (clone $pending)->count();
             $reserved = (clone $pending)->whereNotNull('reserved_at')->count();
