@@ -83,7 +83,29 @@ class WindowAggregationTest extends TestCase
         $svc->aggregateWindow(Carbon::parse('2026-11-10 12:31:00'));
 
         $this->assertSame(2.0, $this->value('2026-11-10 12:30:00', 'page_views'));
-        $this->assertSame(6, MetricWindowModel::count()); // 6 métriques, pas de doublon
+        $this->assertSame(9, MetricWindowModel::count()); // 9 métriques, pas de doublon
+    }
+
+    public function test_sessions_are_deduplicated_and_bounce_engagement_are_aggregated(): void
+    {
+        // une seule session (s1) : 3 événements -> 1 session ; une autre (s2) : 1 événement
+        foreach (['12:31:00', '12:32:00', '12:33:00'] as $t) {
+            RawEventModel::create(['id' => (string) Str::uuid(), 'instance_id' => $this->instance->id, 'event_type' => 'NAVIGATION', 'event_name' => 'page_view', 'visitor_id' => 'v1', 'session_id' => 'sv1', 'payload' => [], 'occurred_at' => "2026-11-10 $t"]);
+        }
+        RawEventModel::create(['id' => (string) Str::uuid(), 'instance_id' => $this->instance->id, 'event_type' => 'NAVIGATION', 'event_name' => 'page_view', 'visitor_id' => 'v2', 'session_id' => 'sv2', 'payload' => [], 'occurred_at' => '2026-11-10 12:34:00']);
+        // rebond : 1 visite sur 2 ; engagement : 10 s et 30 s actives
+        $this->event('page_duration', '2026-11-10 12:35:00', ['is_bounce' => true, 'active_duration' => 10], 'NAVIGATION', 'v1');
+        $this->event('page_duration', '2026-11-10 12:36:00', ['is_bounce' => false, 'active_duration' => 30], 'NAVIGATION', 'v2');
+
+        app(WindowAggregationService::class)->aggregateWindow(Carbon::parse('2026-11-10 12:30:00'));
+
+        $w = '2026-11-10 12:30:00';
+        $this->assertSame(2.0, $this->value($w, 'sessions'));
+        $this->assertSame(2.0, $this->value($w, 'unique_visitors'));
+        $this->assertSame(4.0, $this->value($w, 'page_views'));
+        $this->assertSame(2.0, $this->value($w, 'page_durations'));
+        $this->assertSame(1.0, $this->value($w, 'bounces'));
+        $this->assertSame(40.0, $this->value($w, 'active_seconds'));
     }
 
     public function test_command_runs_and_is_scheduled(): void

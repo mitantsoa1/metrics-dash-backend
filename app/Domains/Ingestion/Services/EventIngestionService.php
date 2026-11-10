@@ -233,7 +233,8 @@ class EventIngestionService
 
     /**
      * Tampon d'ingestion (PU-51) : la réponse part sans attendre l'écriture en base.
-     * Exécuté après l'envoi de la réponse, sans dépendre d'un worker de queue.
+     * Par défaut le lot est enregistré dans la file persistante (table jobs) puis écrit par un worker,
+     * avec reprises et dead-letter. INGESTION_BUFFER=inline écrit après l'envoi de la réponse, sans worker.
      *
      * @param  array<int, RawEvent>  $rawEvents
      */
@@ -243,7 +244,14 @@ class EventIngestionService
             return;
         }
 
-        dispatch(new \App\Domains\Ingestion\Jobs\PersistRawEventsJob($rawEvents))->afterResponse();
+        $job = new \App\Domains\Ingestion\Jobs\PersistRawEventsJob($rawEvents);
+
+        if (config('ingestion.buffer', 'queue') === 'inline') {
+            dispatch($job)->afterResponse();
+
+            return;
+        }
+
+        dispatch($job);
     }
 }
-

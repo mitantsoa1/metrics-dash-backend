@@ -61,6 +61,9 @@ class WindowAggregationService
         $visitors = [];
         $sessions = [];
         $seenOrders = [];
+        $pageDurations = 0;
+        $bounces = 0;
+        $activeSeconds = 0;
 
         $events = RawEventModel::where('instance_id', $instanceId)
             ->where('occurred_at', '>=', $start)
@@ -80,6 +83,11 @@ class WindowAggregationService
 
             if ($name === 'page_view') {
                 $pageViews++;
+            } elseif ($name === 'page_duration') {
+                // Composantes additives : taux de rebond = bounces / page_durations, engagement = active_seconds / page_durations
+                $pageDurations++;
+                $bounces += ! empty($payload['is_bounce']) ? 1 : 0;
+                $activeSeconds += (int) ($payload['active_duration'] ?? $payload['page_duration'] ?? 0);
             } elseif (in_array($name, KpiSummaryService::LEAD_EVENTS, true)) {
                 $leads++;
             } elseif (KpiSummaryService::isOrder($name, $event->event_type, is_array($payload['eventData'] ?? null) ? $payload['eventData'] : $payload)) {
@@ -102,6 +110,9 @@ class WindowAggregationService
             'orders' => $orders,
             'revenue' => round($revenue, 2),
             'leads' => $leads,
+            'page_durations' => $pageDurations,
+            'bounces' => $bounces,
+            'active_seconds' => $activeSeconds,
         ];
     }
 }
