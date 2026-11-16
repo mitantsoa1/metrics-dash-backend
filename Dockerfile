@@ -21,7 +21,8 @@ RUN apk add --no-cache \
     oniguruma-dev \
     libxml2-dev \
     postgresql-dev \
-    linux-headers
+    linux-headers \
+    supervisor
 
 RUN docker-php-ext-install \
     pdo_mysql \
@@ -72,4 +73,5 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
     CMD curl -f http://127.0.0.1:80/ || exit 1
 
 ENTRYPOINT ["/app/entrypoint.sh"]
-CMD ["frankenphp", "php-server", "--root", "public/", "--listen", ":80"]
+# supervisord lance le serveur web, le worker de file et le planificateur (docker/supervisord.conf).
+CMD ["supervisord", "-c", "/app/docker/supervisord.conf"]
