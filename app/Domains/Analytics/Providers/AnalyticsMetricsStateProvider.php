@@ -298,6 +298,8 @@ class AnalyticsMetricsStateProvider implements ProviderInterface
         // 4. Répartition dynamique des appareils, navigateurs, Top Pages et Top Clics
         $rawEvents = RawEventModel::where($rawScope)
             ->whereBetween('occurred_at', [$startDate, $endDate])
+            ->orderByDesc('occurred_at') // le journal prend les 25 plus récents ; le plafond garde les plus récents
+            ->orderByDesc('created_at')
             ->limit(2000)
             ->get();
 
