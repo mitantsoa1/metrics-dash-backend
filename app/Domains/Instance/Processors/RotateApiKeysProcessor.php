@@ -21,6 +21,9 @@ class RotateApiKeysProcessor implements ProcessorInterface
         $instanceId = $uriVariables['id'] ?? $data->id ?? '';
         $keyType = $data->rotatedKeyType ?? 'PUBLIC_SDK';
 
+        $instance = \App\Domains\Instance\Infrastructure\Models\InstanceModel::findOrFail($instanceId);
+        abort_unless(app(\App\Domains\Instance\Policies\InstancePolicy::class)->rotateKeys(auth()->user(), $instance), 403, 'Action non autorisée sur cette instance.');
+
         $inputDto = new RotateKeyInputDTO(
             instanceId: $instanceId,
             keyType: $keyType

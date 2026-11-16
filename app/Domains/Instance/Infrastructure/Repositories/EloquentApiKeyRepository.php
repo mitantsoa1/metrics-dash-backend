@@ -63,6 +63,7 @@ class EloquentApiKeyRepository implements ApiKeyRepositoryInterface
                 'type' => $apiKey->getType()->value,
                 'key_hash' => $apiKey->getKeyHash(),
                 'prefix' => $apiKey->getPrefix(),
+                'plain_key' => $apiKey->getPlainKey(),
                 'last_used_at' => $apiKey->getLastUsedAt()?->format('Y-m-d H:i:s'),
             ]
         );
@@ -88,6 +89,7 @@ class EloquentApiKeyRepository implements ApiKeyRepositoryInterface
             ApiKeyType::from($model->type),
             $model->key_hash,
             $model->prefix,
+            $model->plain_key,
             $model->last_used_at ? new DateTimeImmutable($model->last_used_at->toDateTimeString()) : null,
             new DateTimeImmutable($model->created_at->toDateTimeString())
         );

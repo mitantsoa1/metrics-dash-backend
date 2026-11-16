@@ -33,6 +33,13 @@ class EloquentInstanceRepository implements InstanceRepositoryInterface
         return $models->map(fn (InstanceModel $model) => $this->toDomain($model))->all();
     }
 
+    public function findAll(): array
+    {
+        $models = InstanceModel::all();
+
+        return $models->map(fn (InstanceModel $model) => $this->toDomain($model))->all();
+    }
+
     public function save(Instance $instance): void
     {
         InstanceModel::updateOrCreate(

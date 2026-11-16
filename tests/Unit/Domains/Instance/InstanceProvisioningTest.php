@@ -19,10 +19,22 @@ use PHPUnit\Framework\TestCase;
 
 class InstanceProvisioningTest extends TestCase
 {
-    public function test_can_validate_fqdn_domain_name(): void
+    public function test_can_validate_fqdn_domain_name_with_https(): void
     {
         $domain = DomainName::fromString('https://app.myclient.com/analytics');
-        $this->assertEquals('app.myclient.com', $domain->toString());
+        $this->assertEquals('https://app.myclient.com', $domain->toString());
+    }
+
+    public function test_can_validate_domain_name_with_http(): void
+    {
+        $domain = DomainName::fromString('http://app.myclient.com');
+        $this->assertEquals('http://app.myclient.com', $domain->toString());
+    }
+
+    public function test_defaults_to_https_when_scheme_omitted(): void
+    {
+        $domain = DomainName::fromString('app.myclient.com');
+        $this->assertEquals('https://app.myclient.com', $domain->toString());
     }
 
     public function test_throws_exception_on_invalid_domain_name(): void

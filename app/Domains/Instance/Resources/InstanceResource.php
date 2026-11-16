@@ -25,6 +25,12 @@ use App\Domains\Instance\Providers\InstanceStateProvider;
             description: 'Crée une nouvelle instance client et génère les paires de clés SDK et Push.'
         ),
         new GetCollection(
+            uriTemplate: '/api/v1/instances',
+            middleware: ['auth:sanctum'],
+            provider: InstanceCollectionStateProvider::class,
+            description: 'Liste l\'ensemble des instances configurées sur la plateforme (accès Superadmin/Admin).'
+        ),
+        new GetCollection(
             uriTemplate: '/api/v1/tenants/{tenantId}/instances',
             middleware: ['auth:sanctum'],
             provider: InstanceCollectionStateProvider::class,
@@ -51,6 +57,13 @@ use App\Domains\Instance\Providers\InstanceStateProvider;
             processor: \App\Domains\Instance\Processors\UpdateInstanceStateProcessor::class,
             description: 'Met à jour le nom, le domaine FQDN ou l\'environnement d\'une instance.'
         ),
+        new \ApiPlatform\Metadata\Delete(
+            uriTemplate: '/api/v1/instances/{id}',
+            middleware: ['auth:sanctum'],
+            read: false,
+            processor: \App\Domains\Instance\Processors\DeleteInstanceStateProcessor::class,
+            description: 'Supprime définitivement une instance et révoque ses clés associées.'
+        ),
 
         new Post(
             uriTemplate: '/api/v1/instances/{id}/rotate-keys',
@@ -63,6 +76,12 @@ use App\Domains\Instance\Providers\InstanceStateProvider;
 
 class InstanceResource
 {
+    /** La clé privée n'est jamais renvoyée en clair après sa création/rotation. */
+    public static function maskSecret(?string $key): string
+    {
+        return ($key === null || strlen($key) < 12) ? 'sk_live_••••' : substr($key, 0, 8).'••••••••'.substr($key, -4);
+    }
+
     #[ApiProperty(description: 'Identifiant UUID unique de l\'instance')]
     public ?string $id = null;
 

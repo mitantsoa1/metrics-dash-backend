@@ -21,6 +21,7 @@ class ApiKeyModel extends Model
         'type',
         'key_hash',
         'prefix',
+        'plain_key',
         'last_used_at',
     ];
 

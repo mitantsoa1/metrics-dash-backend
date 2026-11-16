@@ -12,11 +12,19 @@ class TenantPolicy
 {
     public function view(UserModel $user, TenantModel $tenant): bool
     {
+        if (in_array($user->role, [UserRole::SUPERADMIN->value, UserRole::ADMIN->value], true)) {
+            return true;
+        }
+
         return $user->tenant_id === $tenant->id;
     }
 
     public function manageMembers(UserModel $user, TenantModel $tenant): bool
     {
+        if (in_array($user->role, [UserRole::SUPERADMIN->value, UserRole::ADMIN->value], true)) {
+            return true;
+        }
+
         if ($user->tenant_id !== $tenant->id) {
             return false;
         }
@@ -28,6 +36,10 @@ class TenantPolicy
 
     public function update(UserModel $user, TenantModel $tenant): bool
     {
+        if (in_array($user->role, [UserRole::SUPERADMIN->value, UserRole::ADMIN->value], true)) {
+            return true;
+        }
+
         if ($user->tenant_id !== $tenant->id) {
             return false;
         }
@@ -39,6 +51,10 @@ class TenantPolicy
 
     public function delete(UserModel $user, TenantModel $tenant): bool
     {
+        if (in_array($user->role, [UserRole::SUPERADMIN->value, UserRole::ADMIN->value], true)) {
+            return true;
+        }
+
         return $user->tenant_id === $tenant->id && $user->role === UserRole::OWNER->value;
     }
 }

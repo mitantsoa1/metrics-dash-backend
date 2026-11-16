@@ -14,27 +14,33 @@ final readonly class DomainName
     {
         $raw = trim($value);
 
-        $parsed = parse_url($raw);
-        if (! isset($parsed['scheme']) && ! isset($parsed['host'])) {
-            $parsed = parse_url('http://'.$raw);
+        if ($raw === '') {
+            throw InvalidDomainException::forDomain($value);
         }
 
-        $scheme = isset($parsed['scheme']) ? strtolower($parsed['scheme']) : '';
+        // Check if an explicit scheme is provided (e.g. http:// or https://)
+        $hasScheme = (bool) preg_match('/^[a-zA-Z][a-zA-Z0-9+\-.]*:\/\//', $raw);
+
+        if ($hasScheme) {
+            $parsed = parse_url($raw);
+            $scheme = isset($parsed['scheme']) ? strtolower($parsed['scheme']) : '';
+            if (! in_array($scheme, ['http', 'https'], true)) {
+                throw InvalidDomainException::forDomain($value);
+            }
+        } else {
+            $scheme = 'https';
+            $parsed = parse_url('https://' . $raw);
+        }
+
         $host = isset($parsed['host']) ? strtolower($parsed['host']) : '';
-        $port = isset($parsed['port']) ? ':'.$parsed['port'] : '';
+        $port = isset($parsed['port']) ? ':' . $parsed['port'] : '';
 
         if (empty($host) || (! filter_var($host, FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME) && $host !== 'localhost' && ! filter_var($host, FILTER_VALIDATE_IP))) {
             throw InvalidDomainException::forDomain($value);
         }
 
-        if (! empty($port)) {
-            $this->value = ($scheme ? $scheme.'://' : '').$host.$port;
-        } else {
-            $this->value = $host;
-        }
+        $this->value = $scheme . '://' . $host . $port;
     }
-
-
 
     public static function fromString(string $domain): self
     {

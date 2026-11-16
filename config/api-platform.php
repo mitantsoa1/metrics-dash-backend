@@ -19,7 +19,7 @@ return [
 
     'formats' => [
         'jsonld' => ['application/ld+json'],
-        'json' => ['application/json'],
+        'json' => ['application/json', 'text/plain', 'text/plain;charset=UTF-8', 'application/x-www-form-urlencoded', 'multipart/form-data'],
         'html' => ['text/html'],
     ],
     'patch_formats' => [

@@ -15,6 +15,7 @@ use App\Domains\Analytics\Providers\AnalyticsMetricsStateProvider;
     operations: [
         new GetCollection(
             uriTemplate: '/api/v1/metrics',
+            middleware: ['auth:sanctum'],
             provider: AnalyticsMetricsStateProvider::class,
             description: 'Récupère les KPIs financiers (Chiffre d\'Affaires, MRR, Panier Moyen, Paiements par Packs) et les séries temporelles.'
         )
@@ -34,7 +35,7 @@ class AnalyticsMetricsResource
     #[ApiProperty(description: 'KPIs d\'audience de base (page_views, unique_visitors, sessions, conversions, bounce_rate)')]
     public array $kpis = [];
 
-    #[ApiProperty(description: 'KPIs financiers et chiffre d\'affaires (total_revenue, mrr, average_order_value, total_transactions, conversion_rate)')]
+    #[ApiProperty(description: 'KPIs financiers et chiffre d\'affaires (total_revenue, mrr, average_order_value, total_transactions)')]
     public array $financialKpis = [];
 
     #[ApiProperty(description: 'Répartition du chiffre d\'affaires et transactions par Packs (Starter, Pro, Enterprise, Custom)')]
@@ -54,5 +55,30 @@ class AnalyticsMetricsResource
 
     #[ApiProperty(description: 'Dernières transactions enregistrées avec détails acheteurs et packs')]
     public array $recentTransactions = [];
+
+    #[ApiProperty(description: 'Pages les plus visitées avec nombre de vues et durée moyenne')]
+    public array $topPages = [];
+
+    #[ApiProperty(description: 'Éléments les plus cliqués avec sélecteur CSS, libellé et nombre de clics')]
+    public array $topClicks = [];
+
+    #[ApiProperty(description: 'Formulaires les plus soumis avec identifiant, nom, chemin et nombre de soumissions')]
+    public array $topForms = [];
+
+    #[ApiProperty(description: 'Journal en temps réel des derniers événements bruts enregistrés (raw_events)')]
+    public array $recentRawEvents = [];
+
+    #[ApiProperty(description: 'Les 6 KPIs principaux avec variation vs période précédente (PU-32/PU-33)')]
+    public array $kpiSummary = [];
+
+    #[ApiProperty(description: 'Top catégories par chiffre d\'affaires (PU-40)')]
+    public array $topCategories = [];
+
+    #[ApiProperty(description: 'Chiffre d\'affaires par région')]
+    public array $regionBreakdown = [];
+
+    #[ApiProperty(description: 'Filtres de segmentation appliqués (category, region, device)')]
+    public array $activeFilters = [];
 }
+
 

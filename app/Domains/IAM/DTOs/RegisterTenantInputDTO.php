@@ -10,6 +10,7 @@ final readonly class RegisterTenantInputDTO
         public string $organizationName,
         public string $ownerName,
         public string $ownerEmail,
-        public string $password
+        public string $password,
+        public ?string $role = null
     ) {}
 }

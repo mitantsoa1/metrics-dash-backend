@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Console\Commands;
 
 use App\Domains\IAM\DTOs\RegisterTenantInputDTO;
+use App\Domains\IAM\Enums\UserRole;
 use App\Domains\IAM\Services\TenantRegistrationService;
 use Illuminate\Console\Command;
 use Throwable;
@@ -27,14 +28,14 @@ class CreateSuperadminCommand extends Command
      *
      * @var string
      */
-    protected $description = 'Créer une organisation et un compte Superadmin avec le rôle OWNER';
+    protected $description = 'Créer une organisation et un compte Superadmin avec le rôle SUPERADMIN';
 
     /**
      * Exécuter la commande Console.
      */
     public function handle(TenantRegistrationService $registrationService): int
     {
-        $this->info('🚀 Création d\'un compte Superadmin (Rôle OWNER)...');
+        $this->info('🚀 Création d\'un compte Superadmin (Rôle SUPERADMIN)...');
 
         $org = $this->option('org') ?: $this->ask('Nom de l\'organisation Tenant', 'MetricsDash SuperAdmin Org');
         $name = $this->option('name') ?: $this->ask('Nom complet du Superadmin', 'Super Admin');
@@ -57,7 +58,8 @@ class CreateSuperadminCommand extends Command
                 organizationName: (string) $org,
                 ownerName: (string) $name,
                 ownerEmail: (string) $email,
-                password: (string) $password
+                password: (string) $password,
+                role: UserRole::SUPERADMIN->value
             );
 
             $outputDto = $registrationService->register($inputDto);
@@ -73,7 +75,7 @@ class CreateSuperadminCommand extends Command
                     ['ID Superadmin', $outputDto->ownerUserId],
                     ['Nom Superadmin', $outputDto->ownerName],
                     ['E-mail Superadmin', $outputDto->ownerEmail],
-                    ['Rôle attribué', 'OWNER (Superadmin)'],
+                    ['Rôle attribué', 'SUPERADMIN'],
                 ]
             );
 

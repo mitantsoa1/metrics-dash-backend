@@ -13,6 +13,8 @@ final readonly class RegisterTenantOutputDTO
         public string $ownerUserId,
         public string $ownerName,
         public string $ownerEmail,
-        public string $token
+        public string $token,
+        public ?string $refreshToken = null
     ) {}
 }
+

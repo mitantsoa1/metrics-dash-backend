@@ -16,7 +16,9 @@ use App\Domains\Ingestion\ValueObjects\EventName;
 use App\Domains\Ingestion\ValueObjects\SessionId;
 use App\Domains\Ingestion\ValueObjects\VisitorId;
 use App\Domains\Instance\Repositories\ApiKeyRepositoryInterface;
+use App\Domains\Instance\Entities\ApiKey;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Log;
 
 class EventIngestionService
 {
@@ -24,17 +26,13 @@ class EventIngestionService
         private readonly ApiKeyRepositoryInterface $apiKeyRepository,
         private readonly RawEventRepositoryInterface $rawEventRepository,
         private readonly EventAnonymizationService $anonymizationService,
-        private readonly UserAgentParserService $uaParserService
+        private readonly UserAgentParserService $uaParserService,
+        private readonly PushEventValidator $pushValidator
     ) {}
 
     public function ingestSdkEvent(IngestSdkEventInputDTO $dto): IngestEventOutputDTO
     {
-        $keyHash = hash('sha256', $dto->publicSdkKey);
-        $apiKey = $this->apiKeyRepository->findByKeyHash($keyHash);
-
-        if (! $apiKey || ! str_starts_with($dto->publicSdkKey, 'pk_live_')) {
-            throw InvalidApiKeyException::forType('PUBLIC_SDK');
-        }
+        $apiKey = $this->resolveKey($dto->publicSdkKey, 'pk_live_', 'PUBLIC_SDK', $dto->ipAddress);
 
         $ip = $dto->ipAddress ?? '127.0.0.1';
         $ua = $dto->userAgent ?? '';
@@ -85,12 +83,9 @@ class EventIngestionService
 
     public function ingestPushEvent(IngestPushEventInputDTO $dto): IngestEventOutputDTO
     {
-        $keyHash = hash('sha256', $dto->privatePushKey);
-        $apiKey = $this->apiKeyRepository->findByKeyHash($keyHash);
+        $apiKey = $this->resolvePushKey($dto->privatePushKey, $dto->ipAddress);
 
-        if (! $apiKey || ! str_starts_with($dto->privatePushKey, 'sk_live_')) {
-            throw InvalidApiKeyException::forType('PRIVATE_PUSH');
-        }
+        $valid = $this->pushValidator->validate($dto->eventName, $dto->eventData, $dto->timestamp);
 
         $ip = $dto->ipAddress ?? '127.0.0.1';
         $anonymizedIp = $this->anonymizationService->anonymizeIp($ip);
@@ -103,11 +98,12 @@ class EventIngestionService
         $rawEvent = RawEvent::create(
             instanceId: $apiKey->getInstanceId(),
             eventType: EventType::BUSINESS,
-            eventName: EventName::fromString($dto->eventName),
+            eventName: EventName::fromString($valid['eventName']),
             visitorId: $dto->visitorId ? VisitorId::fromString($dto->visitorId) : null,
             sessionId: $dto->sessionId ? SessionId::fromString($dto->sessionId) : null,
-            payload: $dto->eventData,
-            context: $context
+            payload: $valid['eventData'],
+            context: $context,
+            occurredAt: $valid['occurredAt']
         );
 
         $this->rawEventRepository->save($rawEvent);
@@ -126,5 +122,136 @@ class EventIngestionService
             occurredAt: $rawEvent->getOccurredAt()->format('Y-m-d H:i:s')
         );
     }
-}
 
+    /** Clé publique SDK (pk_live_) : vérification à l'initialisation du SDK (PU-26). */
+    public function resolvePublicKey(string $plainKey, ?string $ip = null): ApiKey
+    {
+        return $this->resolveKey($plainKey, 'pk_live_', 'PUBLIC_SDK', $ip);
+    }
+
+    /** Clé privée Push (sk_live_) : 401 si absente/invalide, tentative refusée journalisée. */
+    public function resolvePushKey(string $plainKey, ?string $ip = null): ApiKey
+    {
+        return $this->resolveKey($plainKey, 'sk_live_', 'PRIVATE_PUSH', $ip);
+    }
+
+    private function resolveKey(string $plainKey, string $prefix, string $type, ?string $ip): ApiKey
+    {
+        $apiKey = $plainKey !== '' && str_starts_with($plainKey, $prefix)
+            ? $this->apiKeyRepository->findByKeyHash(hash('sha256', $plainKey))
+            : null;
+
+        if (! $apiKey) {
+            // Journal des refus (supervision) : jamais la clé complète
+            Log::warning('ingestion.key_refused', [
+                'type' => $type,
+                'ip' => $ip,
+                'key_prefix' => substr($plainKey, 0, 12),
+            ]);
+
+            throw InvalidApiKeyException::forType($type, $plainKey);
+        }
+
+        return $apiKey;
+    }
+
+    /** Correspondance des événements émis par le SDK navigateur vers les noms métier du dashboard. */
+    private const SDK_EVENT_NAMES = [
+        'pageview' => 'page_view',
+        'click' => 'click_interaction',
+        'form_submit' => 'form_submit',
+        'session_ping' => 'page_duration',
+    ];
+
+    public const MAX_SDK_BATCH = 100;
+
+    /**
+     * Lot d'événements du SDK (PU-31) : la clé est résolue une fois, les événements sont
+     * mis en tampon puis écrits après l'envoi de la réponse (PU-51).
+     *
+     * @param  array<int, array<string, mixed>>  $events
+     */
+    public function ingestSdkBatch(
+        string $publicSdkKey,
+        array $events,
+        ?string $visitorId,
+        ?string $sessionId,
+        ?string $ip,
+        ?string $userAgent
+    ): int {
+        $apiKey = $this->resolveKey($publicSdkKey, 'pk_live_', 'PUBLIC_SDK', $ip);
+
+        $ip ??= '127.0.0.1';
+        $ua = $userAgent ?? '';
+        $uaMeta = $this->uaParserService->parse($ua);
+        $anonymizedVisitorId = $this->anonymizationService->generateAnonymousVisitorId($visitorId, $ip, $ua);
+
+        $rawEvents = [];
+        foreach (array_slice($events, 0, self::MAX_SDK_BATCH) as $item) {
+            if (! is_array($item) || empty($item['event_type']) || ! is_string($item['event_type'])) {
+                continue;
+            }
+
+            $type = $item['event_type'];
+            $name = self::SDK_EVENT_NAMES[$type] ?? strtolower(preg_replace('/[^A-Za-z0-9_]+/', '_', $type));
+            $timestamp = $item['timestamp'] ?? null;
+            unset($item['event_type'], $item['timestamp']);
+
+            if ($type === 'session_ping') {
+                $item['page_duration'] = (int) ($item['total_duration_s'] ?? 0);
+                $item['active_duration'] = (int) ($item['engaged_duration_s'] ?? 0);
+            }
+
+            try {
+                $occurredAt = is_string($timestamp) ? new \DateTimeImmutable($timestamp) : null;
+            } catch (\Throwable) {
+                $occurredAt = null;
+            }
+
+            $rawEvents[] = RawEvent::create(
+                instanceId: $apiKey->getInstanceId(),
+                eventType: EventType::NAVIGATION,
+                eventName: EventName::fromString(substr($name !== '' ? $name : 'custom_event', 0, 64)),
+                visitorId: VisitorId::fromString($anonymizedVisitorId),
+                sessionId: $sessionId ? SessionId::fromString($sessionId) : null,
+                payload: $item,
+                context: [
+                    'anonymized_ip' => $this->anonymizationService->anonymizeIp($ip),
+                    'device_type' => $uaMeta['device_type'],
+                    'browser' => $uaMeta['browser'],
+                    'os' => $uaMeta['os'],
+                    'source' => 'SDK_WEB',
+                ],
+                occurredAt: $occurredAt
+            );
+        }
+
+        $this->bufferAndPersist($rawEvents);
+
+        return count($rawEvents);
+    }
+
+    /**
+     * Tampon d'ingestion (PU-51) : la réponse part sans attendre l'écriture en base.
+     * Par défaut le lot est enregistré dans la file persistante (table jobs) puis écrit par un worker,
+     * avec reprises et dead-letter. INGESTION_BUFFER=inline écrit après l'envoi de la réponse, sans worker.
+     *
+     * @param  array<int, RawEvent>  $rawEvents
+     */
+    public function bufferAndPersist(array $rawEvents): void
+    {
+        if ($rawEvents === []) {
+            return;
+        }
+
+        $job = new \App\Domains\Ingestion\Jobs\PersistRawEventsJob($rawEvents);
+
+        if (config('ingestion.buffer', 'queue') === 'inline') {
+            dispatch($job)->afterResponse();
+
+            return;
+        }
+
+        dispatch($job);
+    }
+}

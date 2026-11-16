@@ -10,6 +10,8 @@ use App\Domains\IAM\ValueObjects\TenantId;
 use App\Domains\Instance\Resources\InstanceResource;
 use App\Domains\Instance\Services\InstanceProvisioningService;
 
+use App\Domains\IAM\Enums\UserRole;
+
 class InstanceCollectionStateProvider implements ProviderInterface
 {
     public function __construct(
@@ -21,12 +23,28 @@ class InstanceCollectionStateProvider implements ProviderInterface
      */
     public function provide(Operation $operation, array $uriVariables = [], array $context = []): array
     {
-        $tenantIdStr = $uriVariables['tenantId'] ?? request()?->route('tenantId') ?? auth()->user()?->tenant_id ?? null;
-        if (! $tenantIdStr) {
-            return [];
+        $user = auth()->user();
+        $tenantIdStr = $uriVariables['tenantId'] ?? request()?->route('tenantId');
+
+        $isSuperAdminOrAdmin = $user && in_array($user->role, [UserRole::SUPERADMIN->value, UserRole::ADMIN->value], true);
+
+        abort_unless($user, 401);
+        if (! $isSuperAdminOrAdmin && $tenantIdStr && $tenantIdStr !== 'all' && $tenantIdStr !== $user->tenant_id) {
+            abort(403, 'Accès à ce tenant non autorisé.');
+        }
+        if ($tenantIdStr === 'all' && ! $isSuperAdminOrAdmin) {
+            $tenantIdStr = $user->tenant_id;
         }
 
-        $dtos = $this->provisioningService->getInstancesByTenant(TenantId::fromString($tenantIdStr));
+        if ($tenantIdStr === 'all' || ($isSuperAdminOrAdmin && ! $tenantIdStr)) {
+            $dtos = $this->provisioningService->getAllInstances();
+        } else {
+            $tenantIdStr = $tenantIdStr ?? $user?->tenant_id;
+            if (! $tenantIdStr) {
+                return [];
+            }
+            $dtos = $this->provisioningService->getInstancesByTenant(TenantId::fromString($tenantIdStr));
+        }
 
         return array_map(function ($dto) {
             $resource = new InstanceResource;
@@ -36,8 +54,8 @@ class InstanceCollectionStateProvider implements ProviderInterface
             $resource->domain = $dto->domain;
             $resource->environment = $dto->environment;
             $resource->status = $dto->status;
-            $resource->publicSdkKey = $dto->publicSdkPrefix.'••••••••';
-            $resource->privatePushKey = $dto->privatePushPrefix.'••••••••';
+            $resource->publicSdkKey = $dto->publicSdkPrefix;
+            $resource->privatePushKey = InstanceResource::maskSecret($dto->privatePushPrefix);
             $resource->createdAt = $dto->createdAt;
 
             return $resource;

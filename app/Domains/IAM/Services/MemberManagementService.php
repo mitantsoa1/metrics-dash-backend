@@ -19,6 +19,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Hash;
 
+use App\Domains\IAM\ValueObjects\UserId;
+
 class MemberManagementService
 {
     public function __construct(
@@ -74,15 +76,80 @@ class MemberManagementService
         $users = $this->userRepository->findByTenantId($tenantId);
 
         return array_map(
-            fn (User $user) => new MemberOutputDTO(
-                userId: $user->getId()->toString(),
-                tenantId: $user->getTenantId()->toString(),
-                name: $user->getName(),
-                email: $user->getEmail()->toString(),
-                role: $user->getRole()->value,
-                createdAt: $user->getCreatedAt()->format(DATE_ATOM)
-            ),
+            fn (User $user) => $this->toDTO($user),
             $users
+        );
+    }
+
+    /**
+     * @return array<int, MemberOutputDTO>
+     */
+    public function getAllMembers(): array
+    {
+        $users = $this->userRepository->findAll();
+
+        return array_map(
+            fn (User $user) => $this->toDTO($user),
+            $users
+        );
+    }
+
+    public function getMemberById(UserId $userId): ?MemberOutputDTO
+    {
+        $user = $this->userRepository->findById($userId);
+        if (! $user) {
+            return null;
+        }
+
+        return $this->toDTO($user);
+    }
+
+    public function updateMember(UserId $userId, array $data): MemberOutputDTO
+    {
+        $user = $this->userRepository->findById($userId);
+        if (! $user) {
+            throw new \RuntimeException("Membre introuvable.");
+        }
+
+        if (isset($data['name']) || isset($data['email'])) {
+            $name = $data['name'] ?? $user->getName();
+            $email = isset($data['email']) ? Email::fromString($data['email']) : $user->getEmail();
+            
+            if (isset($data['email']) && $data['email'] !== $user->getEmail()->toString()) {
+                if ($this->userRepository->findByEmail($email) !== null) {
+                    throw EmailAlreadyExistsException::forEmail($data['email']);
+                }
+            }
+            $user->updateProfile($name, $email);
+        }
+
+        if (isset($data['role'])) {
+            $user->changeRole(UserRole::from($data['role']));
+        }
+
+        if (isset($data['password']) && ! empty($data['password'])) {
+            $user->updatePassword(Hash::make($data['password']));
+        }
+
+        $this->userRepository->save($user);
+
+        return $this->toDTO($user);
+    }
+
+    public function deleteMember(UserId $userId): void
+    {
+        $this->userRepository->delete($userId);
+    }
+
+    private function toDTO(User $user): MemberOutputDTO
+    {
+        return new MemberOutputDTO(
+            userId: $user->getId()->toString(),
+            tenantId: $user->getTenantId()->toString(),
+            name: $user->getName(),
+            email: $user->getEmail()->toString(),
+            role: $user->getRole()->value,
+            createdAt: $user->getCreatedAt()->format(DATE_ATOM)
         );
     }
 }

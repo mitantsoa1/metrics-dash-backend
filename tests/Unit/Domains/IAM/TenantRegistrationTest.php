@@ -10,7 +10,9 @@ use App\Domains\IAM\Entities\User;
 use App\Domains\IAM\Exceptions\EmailAlreadyExistsException;
 use App\Domains\IAM\Repositories\TenantRepositoryInterface;
 use App\Domains\IAM\Repositories\UserRepositoryInterface;
+use App\Domains\IAM\Services\AuditService;
 use App\Domains\IAM\Services\TenantRegistrationService;
+use App\Domains\IAM\Services\TokenService;
 use PHPUnit\Framework\TestCase;
 
 class TenantRegistrationTest extends TestCase
@@ -19,8 +21,10 @@ class TenantRegistrationTest extends TestCase
     {
         $tenantRepo = $this->createMock(TenantRepositoryInterface::class);
         $userRepo = $this->createMock(UserRepositoryInterface::class);
+        $tokenService = $this->createMock(TokenService::class);
+        $auditService = $this->createMock(AuditService::class);
 
-        $service = new TenantRegistrationService($tenantRepo, $userRepo);
+        $service = new TenantRegistrationService($tenantRepo, $userRepo, $tokenService, $auditService);
         $this->assertInstanceOf(TenantRegistrationService::class, $service);
     }
 
@@ -28,12 +32,14 @@ class TenantRegistrationTest extends TestCase
     {
         $tenantRepo = $this->createMock(TenantRepositoryInterface::class);
         $userRepo = $this->createMock(UserRepositoryInterface::class);
+        $tokenService = $this->createMock(TokenService::class);
+        $auditService = $this->createMock(AuditService::class);
 
         $existingUser = $this->createMock(User::class);
         $userRepo->method('findByEmail')
             ->willReturn($existingUser);
 
-        $service = new TenantRegistrationService($tenantRepo, $userRepo);
+        $service = new TenantRegistrationService($tenantRepo, $userRepo, $tokenService, $auditService);
 
         $this->expectException(EmailAlreadyExistsException::class);
 

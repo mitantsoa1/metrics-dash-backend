@@ -93,6 +93,12 @@ class User
         return $this->createdAt;
     }
 
+    public function updateProfile(string $name, Email $email): void
+    {
+        $this->name = $name;
+        $this->email = $email;
+    }
+
     public function changeRole(UserRole $newRole): void
     {
         $this->role = $newRole;

@@ -99,6 +99,25 @@ class InstanceProvisioningService
     {
         $instances = $this->instanceRepository->findByTenantId($tenantId);
 
+        return $this->mapInstancesToDTOs($instances);
+    }
+
+    /**
+     * @return array<int, InstanceOutputDTO>
+     */
+    public function getAllInstances(): array
+    {
+        $instances = $this->instanceRepository->findAll();
+
+        return $this->mapInstancesToDTOs($instances);
+    }
+
+    /**
+     * @param array<int, Instance> $instances
+     * @return array<int, InstanceOutputDTO>
+     */
+    private function mapInstancesToDTOs(array $instances): array
+    {
         return array_map(function (Instance $instance) {
             $public = $this->apiKeyRepository->findByInstanceAndType($instance->getId(), ApiKeyType::PUBLIC_SDK);
             $private = $this->apiKeyRepository->findByInstanceAndType($instance->getId(), ApiKeyType::PRIVATE_PUSH);
@@ -110,8 +129,8 @@ class InstanceProvisioningService
                 domain: $instance->getDomain()->toString(),
                 environment: $instance->getEnvironment()->value,
                 status: $instance->getStatus()->value,
-                publicSdkPrefix: $public?->getPrefix() ?? 'pk_live_',
-                privatePushPrefix: $private?->getPrefix() ?? 'sk_live_',
+                publicSdkPrefix: $public?->getPlainKey() ?? $public?->getPrefix() ?? 'pk_live_',
+                privatePushPrefix: $private?->getPlainKey() ?? $private?->getPrefix() ?? 'sk_live_',
                 createdAt: $instance->getCreatedAt()->format(DATE_ATOM)
             );
         }, $instances);
